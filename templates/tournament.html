@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>a2 agent tournament</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin: 20px;
+        }
+
+        .tournament-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            width: 100%;
+        }
+
+        .bracket {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            padding-top: 50px;
+            min-width: min-content;
+            transform-origin: center top;
+        }
+
+        .left-bracket, .right-bracket {
+            display: flex;
+            gap: 10px;
+        }
+
+        .right-bracket {
+            flex-direction: row-reverse;
+        }
+
+        .round {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            min-width: 120px;
+            position: relative;
+            padding: 10px;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .round.active-round {
+            background-color: rgba(76, 175, 80, 0.1);  /* Light green background */
+            border: 1px solid #4CAF50;
+        }
+
+        .round h3 {
+            margin: 0 0 15px 0;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .round.active-round h3 {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .match {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px;
+            width: 120px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+            font-size: 0.9em;
+        }
+
+        .match:hover {
+            transform: translateY(-2px);
+        }
+
+        .match.active {
+            border: 2px solid #4CAF50;
+        }
+
+        .match::after {
+            content: '';
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            width: 20px;
+            height: 2px;
+            background: #ddd;
+        }
+
+        .match::before {
+            content: '';
+            position: absolute;
+            left: -20px;
+            top: 50%;
+            width: 20px;
+            height: 2px;
+            background: #ddd;
+        }
+
+        .final .match::before,
+        .final .match::after {
+            width: 40px;
+            background: #ddd;
+        }
+
+        .final .match::before {
+            left: -40px;
+        }
+
+        .final .match::after {
+            right: -40px;
+        }
+
+        .left-bracket .round:first-child .match::before,
+        .right-bracket .round:first-child .match::before {
+            display: none;
+        }
+
+        .round:last-child .match::after,
+        .round:last-child .match::before {
+            display: none;
+        }
+
+        .participant {
+            padding: 4px;
+            margin: 4px 0;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+        }
+
+        .vote-count {
+            color: #666;
+            font-size: 0.9em;
+            position: relative;
+            cursor: help;
+        }
+
+        .vote-tooltip {
+            visibility: hidden;
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            width: max-content;
+            max-width: 200px;
+            z-index: 100;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 5px;
+        }
+
+        .vote-count:hover .vote-tooltip {
+            visibility: visible;
+        }
+
+        .vote-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 0 5px 5px 5px;
+            border-style: solid;
+            border-color: transparent transparent #333 transparent;
+        }
+
+        .winner {
+            background-color: #e8f5e9;
+            font-weight: bold;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+        }
+
+        .match-details {
+            margin-top: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .conversation {
+            margin-top: 20px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            max-height: 1000px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin: 12px 0;
+            padding: 12px;
+            border-radius: 4px;
+            background: white;
+            font-size: 1.1em;
+            line-height: 1.4;
+        }
+
+        .leaderboard {
+            margin-top: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .leaderboard table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .leaderboard th, .leaderboard td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .leaderboard th {
+            background-color: #f5f5f5;
+        }
+
+        .bye {
+            color: #999;
+            font-style: italic;
+        }
+
+        .round:not(:first-child) .match {
+            margin-top: calc(150px * var(--level));
+        }
+
+        /* Update the final round styling */
+        .round.final {
+            margin-top: 0px;
+        }
+
+        .round.final .match {
+            margin-top: 225px !important; 
+        }
+
+        /* Add these styles */
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+        }
+
+        .match.running {
+            border: 2px solid #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        .match.completed {
+            border: 1px solid #ddd;
+            opacity: 0.8;
+        }
+
+        .match.active.running {
+            border: 3px solid #4CAF50;
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <h1>a2 agent tournament</h1><div class="controls"><button id="startTournament">Start</button><button id="resetTournament">Reset</button></div>
+
+    <div class="container">
+        <div class="tournament-container" id="bracketContainer">
+            <!-- Rounds will be populated here -->
+        </div>
+
+        <div class="match-details" id="matchDetails">
+            <div id="currentMatchup"></div>
+            <div class="conversation" id="conversation">
+                <!-- Conversation will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <div class="leaderboard">
+        <h2>Leaderboard</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Name</th>
+                    <th>Round reached</th>
+                    <th>Total votes</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboardBody">
+                <!-- Leaderboard will be populated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Add at the top of the script section
+        let selectedMatch = JSON.parse(localStorage.getItem('selectedMatch')) || { roundIndex: 0, matchIndex: 0 };
+
+        // Initialize Socket.IO connection
+        var socket = io();
+        
+        // Listen for tournament updates
+        socket.on('tournament_update', function(data) {
+            console.log('Received tournament update:', data);
+            
+            // Store current scroll position and selection
+            const conversation = document.getElementById('conversation');
+            const scrollPos = conversation.scrollTop;
+            const currentSelection = selectedMatch;  // Store current selection before any updates
+            
+            // Update display
+            displayTournament(data);
+            
+            // Always restore the previously selected match
+            if (currentSelection && data.rounds[currentSelection.roundIndex] && 
+                data.rounds[currentSelection.roundIndex][currentSelection.matchIndex]) {
+                selectedMatch = currentSelection;  // Ensure selection isn't changed
+                const match = data.rounds[currentSelection.roundIndex][currentSelection.matchIndex];
+                showMatchDetails(match, currentSelection.roundIndex, currentSelection.matchIndex);
+                conversation.scrollTop = scrollPos;
+            }
+        });
+
+        document.getElementById('startTournament').addEventListener('click', startTournament);
+        document.getElementById('resetTournament').addEventListener('click', resetTournament);
+
+        function startTournament() {
+            document.getElementById('startTournament').disabled = true;
+            fetch('/run_tournament', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayTournament(data);
+                document.getElementById('startTournament').disabled = false;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('startTournament').disabled = false;
+            });
+        }
+
+        function resetTournament() {
+            fetch('/reset', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(() => {
+                selectedMatch = { roundIndex: 0, matchIndex: 0 };
+                localStorage.removeItem('selectedMatch');
+                document.getElementById('bracketContainer').innerHTML = '';
+                document.getElementById('leaderboardBody').innerHTML = '';
+                document.getElementById('conversation').innerHTML = '';
+                document.getElementById('currentMatchup').innerHTML = '';
+            });
+        }
+
+        function getVoterList(votes, participantName) {
+            if (!votes || !participantName) return [];
+            return votes
+                .filter(([voter, votee]) => votee === participantName)
+                .map(([voter, _]) => voter);
+        }
+
+        function createVoteCountHtml(votes, participantName) {
+            if (!votes) return '';
+            const voteCount = countVotes(votes, participantName);
+            const voters = getVoterList(votes, participantName);
+            const voterList = voters.join('\n');
+            
+            return `
+                <span class="vote-count">
+                    (${voteCount} votes)
+                    <span class="vote-tooltip">
+                        Voters for ${participantName}:\n${voterList}
+                    </span>
+                </span>
+            `;
+        }
+
+        function showMatchDetails(match, roundIndex, matchIndex) {
+            selectedMatch = { roundIndex, matchIndex };
+            localStorage.setItem('selectedMatch', JSON.stringify(selectedMatch));
+            
+            const currentMatchup = document.getElementById('currentMatchup');
+            const conversation = document.getElementById('conversation');
+            
+            currentMatchup.innerHTML = `
+                <h3>Round ${roundIndex + 1}, Match ${matchIndex + 1}</h3>
+                <div class="participant">
+                    ${match.participant1 || 'Bye'} 
+                    ${match.votes ? createVoteCountHtml(match.votes, match.participant1) : ''}
+                </div>
+                <div class="participant">
+                    ${match.participant2 || 'Bye'}
+                    ${match.votes ? createVoteCountHtml(match.votes, match.participant2) : ''}
+                </div>
+            `;
+
+            // Update conversation display
+            if (match.conversation) {
+                conversation.innerHTML = match.conversation.split('\n').map(msg => 
+                    `<div class="message">${msg}</div>`
+                ).join('');
+            } else {
+                conversation.innerHTML = '<div class="message">No conversation available</div>';
+            }
+
+            // Highlight active match in bracket
+            document.querySelectorAll('.match').forEach(m => m.classList.remove('active'));
+            document.querySelector(`[data-round="${roundIndex}"][data-match="${matchIndex}"]`).classList.add('active');
+        }
+
+        function countVotes(votes, participantName) {
+            if (!votes || !participantName) return 0;
+            return votes.filter(([_, votee]) => votee === participantName).length;
+        }
+
+        function displayTournament(data) {
+            const container = document.getElementById('bracketContainer');
+            container.innerHTML = '';
+
+            const bracket = document.createElement('div');
+            bracket.className = 'bracket';
+
+            const leftBracket = document.createElement('div');
+            leftBracket.className = 'left-bracket';
+
+            const rightBracket = document.createElement('div');
+            rightBracket.className = 'right-bracket';
+
+            const rounds = data.rounds;
+            const numRounds = rounds.length;
+            
+            // For first round, split matches between left and right sides
+            const firstRoundMatches = rounds[0];
+            const matchesPerSide = Math.ceil(firstRoundMatches.length / 2);
+            
+            // Left side matches and their subsequent rounds
+            const leftMatches = firstRoundMatches.slice(0, matchesPerSide);
+            for (let i = 0; i < numRounds - 1; i++) {
+                const roundMatches = i === 0 ? leftMatches : 
+                    rounds[i].slice(0, Math.ceil(rounds[i].length / 2));
+                const roundDiv = createRoundDiv(roundMatches, i, 'left');
+                leftBracket.appendChild(roundDiv);
+            }
+
+            // Right side matches and their subsequent rounds
+            const rightMatches = firstRoundMatches.slice(matchesPerSide);
+            for (let i = 0; i < numRounds - 1; i++) {
+                const roundMatches = i === 0 ? rightMatches :
+                    rounds[i].slice(Math.ceil(rounds[i].length / 2));
+                const roundDiv = createRoundDiv(roundMatches, i, 'right');
+                rightBracket.appendChild(roundDiv);
+            }
+
+            // Final round in the middle
+            if (numRounds > 1) {
+                const finalRoundDiv = createRoundDiv(rounds[numRounds - 1], numRounds - 1, 'final');
+                bracket.appendChild(leftBracket);
+                bracket.appendChild(finalRoundDiv);
+                bracket.appendChild(rightBracket);
+            } else {
+                bracket.appendChild(leftBracket);
+            }
+
+            container.appendChild(bracket);
+
+            updateLeaderboard(data.leaderboard);
+            setTimeout(scaleBracketToFit, 0);
+        }
+
+        function createRoundDiv(round, roundIndex, side) {
+            const roundDiv = document.createElement('div');
+            roundDiv.className = 'round';
+            if (side === 'final') {
+                roundDiv.classList.add('final');
+            }
+            
+            // Check if any match in this round is active
+            const hasActiveMatch = round.some(match => match.is_active);
+            if (hasActiveMatch) {
+                roundDiv.classList.add('active-round');
+            }
+            
+            roundDiv.innerHTML = `<h3>Round ${roundIndex + 1}</h3>`;
+
+            // Calculate the spacing multiplier based on the round
+            const spacingMultiplier = Math.pow(2, roundIndex);
+            roundDiv.style.setProperty('--level', spacingMultiplier);
+
+            round.forEach((match, matchIndex) => {
+                const matchDiv = document.createElement('div');
+                matchDiv.className = 'match';
+                
+                // Add running/completed states
+                if (match.is_active) {
+                    matchDiv.classList.add('running');
+                } else if (match.winner) {
+                    matchDiv.classList.add('completed');
+                }
+                
+                if (match.is_active) matchDiv.classList.add('active');
+                matchDiv.setAttribute('data-round', roundIndex);
+                matchDiv.setAttribute('data-match', matchIndex);
+                
+                // Add specific spacing for this match
+                if (roundIndex > 0) {
+                    const baseSpacing = 60; // Base spacing between matches
+                    const spacing = baseSpacing * Math.pow(2, roundIndex - 1);
+                    matchDiv.style.marginTop = `${spacing}px`;
+                }
+                
+                matchDiv.onclick = () => showMatchDetails(match, roundIndex, matchIndex);
+
+                const p1Div = createParticipantDiv(match, match.participant1, match.votes, roundIndex, true);
+                const p2Div = createParticipantDiv(match, match.participant2, match.votes, roundIndex, false);
+
+                matchDiv.appendChild(p1Div);
+                matchDiv.appendChild(p2Div);
+                roundDiv.appendChild(matchDiv);
+            });
+
+            return roundDiv;
+        }
+
+        function createParticipantDiv(match, participant, votes, roundIndex, isFirst) {
+            const div = document.createElement('div');
+            div.className = 'participant';
+            
+            if (match.winner && participant === match.winner) {
+                div.classList.add('winner');
+            }
+            
+            const name = roundIndex === 0 ? (participant || 'Bye') : (participant || '...');
+            div.innerHTML = `
+                ${name}
+                ${votes ? createVoteCountHtml(votes, participant) : ''}
+            `;
+            
+            if (!participant && roundIndex === 0) div.classList.add('bye');
+            
+            return div;
+        }
+
+        function updateLeaderboard(leaderboard) {
+            const leaderboardBody = document.getElementById('leaderboardBody');
+            leaderboardBody.innerHTML = '';
+            
+            leaderboard.forEach((entry, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${entry.name}</td>
+                    <td>Round ${entry.round_reached}</td>
+                    <td>${entry.total_votes}</td>
+                `;
+                leaderboardBody.appendChild(row);
+            });
+        }
+
+        function scaleBracketToFit() {
+            const container = document.querySelector('.tournament-container');
+            const bracket = document.querySelector('.bracket');
+            if (!bracket) return;
+
+            // Reset any existing transform
+            bracket.style.transform = 'none';
+            
+            // Get the natural and container widths
+            const bracketWidth = bracket.scrollWidth;
+            const containerWidth = container.clientWidth;
+            
+            // If bracket is wider than container, scale it down
+            if (bracketWidth > containerWidth) {
+                const scale = (containerWidth - 40) / bracketWidth;  // 40px for padding
+                bracket.style.transform = `scale(${scale})`;
+            }
+        }
+
+        // Call the scaling function after displaying tournament and on window resize
+        window.addEventListener('resize', scaleBracketToFit);
+    </script>
+</body>
+</html> 
