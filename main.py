@@ -6,18 +6,19 @@ from agents import agent_list
 from llm_utils import *
 
 class Agent:
-    def __init__(self, name, persona):
+    def __init__(self, name, persona, task_schema):
         self.name = name
         self.persona = persona
+        self.task_schema = task_schema  # Ensures task_schema is correctly initialized
         self.messages = []
 
 class Game:
-    def __init__(self, agents, math_problem="Solve for x in the equation 2x + 3 = 15."):
+    def __init__(self, agents, math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
         self.agents = agents
         self.math_problem = math_problem
         self.public_messages = []
         self.round_number = 0
-        self.gamestate = f"Math Problem: {self.math_problem}\nNothing has been said yet. Start the discussion by analyzing the problem.\n"
+        self.gamestate = f"Math Problem: {self.math_problem}\nStart by analyzing the problem.\n"
         self.log = ""
 
     def update_gamestate(self, agent_name, message):
@@ -34,12 +35,20 @@ class Game:
         return gen_oai(messages)
 
     def _create_system_prompt(self, agent):
+        task_descriptions = "\n".join(
+            [f"Task {i+1}: {task['description']}" for i, task in enumerate(agent.task_schema.values())]
+        )
         return f"""
-        YOU: You are {agent.name}, {agent.persona}. Speak in character as {agent.name} with short, clear messages in a conversational tone. 
+        YOU: You are {agent.name}, {agent.persona}. Follow the task schema below to solve the math problem collaboratively.
+
+        MATH PROBLEM: "{self.math_problem}"
         
-        SCENARIO: You are in a group with {', '.join(a.name for a in self.agents)} discussing a math problem: "{self.math_problem}". The goal is to collaborate with the group to solve the problem. 
+        TASK SCHEMA:
+        {task_descriptions}
+
+        GOAL: Work with the group to solve the problem.
         
-        STYLE: Write as if texting, with short messages and minimal punctuation. No emojis. Speak in your own personal voice, avoiding generic or vague language.
+        STYLE: Write as if texting, with short messages and minimal punctuation. No emojis.
         """
 
     def get_agent_response(self, agent, current_round, total_rounds):
@@ -117,7 +126,7 @@ class Game:
 
     intro = {
         "name": "introduction",
-        "instruction": "Because the discussion has just started, introduce yourself and share any initial thoughts you have on approaching the math problem.",
+        "instruction": "Introduce yourself and share any initial thoughts you have on approaching the math problem.",
         "description": "your introduction plan",
     }
 
@@ -129,7 +138,7 @@ class Game:
 
     plan = {
         "name": "plan",
-        "instruction": "Based on your reflection, write a plan for how to approach solving the math problem. Be specific about the steps you would take.",
+        "instruction": "Based on your reflection, write a plan for how to approach solving the math problem.",
         "description": "your plan",
     }
 
@@ -139,14 +148,16 @@ class Game:
         "description": "your message",
     }
 
-def init_game(agents=[], math_problem="Solve for x in the equation 2x + 3 = 15."):
-    initialized_agents = [Agent(agent_data["name"], agent_data["persona"]) for agent_data in agents]
+def init_game(agents=[], math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
+    initialized_agents = [Agent(agent_data["name"], agent_data["persona"], agent_data.get("task_schema", {})) for agent_data in agents]
     return Game(initialized_agents, math_problem=math_problem)
 
 app = Flask(__name__)
 game = None
 current_agent_index = 0
 game_data = []
+
+# Flask route definitions remain the same
 
 @app.route('/')
 def index():
@@ -157,7 +168,7 @@ def add_agent():
     global game
     data = request.json
     new_agent = {"name": data['name'], "persona": data['persona']}
-    math_problem = data.get('math_problem', "Solve for x in the equation 2x + 3 = 15.")
+    math_problem = data.get('math_problem', "Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)")
     agent_list.append(new_agent)
     game = init_game(agent_list, math_problem=math_problem)
     game.log_user_agent(data['name'], data['persona'])
