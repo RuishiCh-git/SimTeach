@@ -39,8 +39,7 @@ class Game:
             [f"Task {i+1}: {task['description']}" for i, task in enumerate(agent.task_schema.values())]
         )
         return f"""
-        YOU: You are {agent.name}, {agent.persona}. Follow the task schema below to solve the math problem collaboratively.
-
+        YOU: Generate a reply from {agent.name} based on the action and the variables from {agent.persona} thought schema. Remember you’re a middle school student , please reply in one sentence with the tone of a middle school student. You believe that your thought schema is completely correct , and all the variables in reply must be perfectly aligned to your own thought schema. 
         MATH PROBLEM: "{self.math_problem}"
         
         TASK SCHEMA:
