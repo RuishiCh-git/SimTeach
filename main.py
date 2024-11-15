@@ -123,11 +123,12 @@ class Game:
     def get_log(self):
         return self.log
 
-    intro = {
-        "name": "introduction",
-        "instruction": "Introduce yourself and share any initial thoughts you have on approaching the math problem.",
-        "description": "your introduction plan",
     }
+    # intro = {
+    #     "name": "introduction",
+    #     "instruction": "Introduce yourself and share any initial thoughts you have on approaching the math problem.",
+    #     "description": "your introduction plan",
+    # }
 
     reflect = {
         "name": "reflection",
