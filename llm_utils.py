@@ -142,9 +142,6 @@ def parse_json(response, target_keys=None):
         if value_match:
           parsed[key] = value_match.group(1).strip()
     
-    if target_keys:
-      parsed = {key: parsed.get(key, "") for key in target_keys}
-    return parsed
   
 
 # end-to-end generation and parsing

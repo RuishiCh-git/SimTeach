@@ -88,7 +88,7 @@ class CharacterSchemaModifier:
         if not new_task_schema or not isinstance(new_task_schema, dict):
             print(f"Invalid or failed schema generation for {agent.name}. Response was: {response}")
             return agent.task_schema 
-        # print(f"Generated new schema for {agent.name}: {new_task_schema}")
+        #print(f"Generated new schema for {agent.name}: {new_task_schema}")
         return new_task_schema
 
 class Game:
