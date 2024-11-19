@@ -139,7 +139,15 @@ class Game:
     def get_log(self):
         return self.log
 
-
+    def get_final_answers(self):
+        final_answers = []
+        for agent in self.agents:
+            instruction = "Based on our discussion, what is your final answer to the math problem? Provide your reasoning if necessary."
+            response = self.instruct_agent(agent, instruction)
+            print(f"{agent.name} FINAL ANSWER: {response}")
+            final_answers.append({"name": agent.name, "final_answer": response})
+        return final_answers
+    
     intro = {
         "name": "introduction",
         "instruction": "Introduce yourself and share any initial thoughts you have on approaching the math problem.",
@@ -230,7 +238,13 @@ def next_agent():
             "round_finished": round_finished
         })
     else:
-        return jsonify({"finished": True})
+        # Call get_final_answers once all rounds are completed
+        final_answers = game.get_final_answers()
+        return jsonify({
+            "finished": True,
+            "final_answers": final_answers
+        })
+
 
 original_agent_count = len(agent_list)
 
