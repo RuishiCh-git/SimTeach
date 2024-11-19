@@ -14,16 +14,82 @@ class Agent:
 
 class CharacterSchemaModifier:
     @staticmethod
-    def modify_schema(agent, interaction, reflect):
-        print(f"Before modification for {agent.name}: {agent.task_schema}")  # Print before modification
+    def reflect_and_decide(agent, interaction, conversation_history):
+        print(f"Before reflection for {agent.name}: {agent.task_schema}")
+        agent_reflection = CharacterSchemaModifier._reflect_on_conversation(agent, interaction, conversation_history)
+        differences_found = CharacterSchemaModifier._compare_with_schema(agent.task_schema, conversation_history)
+        decision = "update" if differences_found else "no_update"
+        if decision == "update":
+            #print(f"Detected differences for {agent.name}: {differences_found}")
+            new_task_schema = CharacterSchemaModifier._regenerate_task_schema(agent, agent_reflection, conversation_history, differences_found)
+            agent.task_schema = new_task_schema
+            print(f"After regeneration for {agent.name}: {agent.task_schema}")
 
-        # Example modification logic using self.reflect
-        for task_key, task in agent.task_schema.items():
-            if "reflection" in interaction.lower() and "factor" in task["description"].lower():
-                task["variables"]["reflected_state"] = f"Agent considered reflection with factorization issues."
-
-        print(f"After modification for {agent.name}: {agent.task_schema}")  # Print after modification
         return agent.task_schema
+
+
+    @staticmethod
+    def _compare_with_schema(task_schema, conversation_history):
+        """
+        Compares the agent's task schema with the content of the conversation history to detect changes or new insights.
+        Returns a list of detected differences for more nuanced decision-making.
+        """
+        detected_differences = []
+        for task_key, task in task_schema.items():
+            for message in conversation_history:
+                if isinstance(message, str):
+                    for var, value in task["variables"].items():
+                        if isinstance(value, str):
+                            if value.lower() not in message.lower():
+                                detected_differences.append({
+                                    "task_key": task_key,
+                                    "variable": var,
+                                    "expected_value": value,
+                                    "found_in_message": message
+                                })
+        return detected_differences if detected_differences else None
+
+    @staticmethod
+    def _reflect_on_conversation(agent, interaction, conversation_history):
+        reflection_summary = f"{agent.name} reflected on their interactions and summarized as follows: "
+        reflection_points = []
+
+        if "correct" in interaction.lower() or "realize" in interaction.lower():
+            reflection_points.append("They made progress in correcting a misconception.")
+        else:
+            reflection_points.append("They did not detect a change in their understanding.")
+        if any("mistake" in msg.lower() for msg in conversation_history):
+            reflection_points.append("There was discussion about potential mistakes.")
+        reflection_summary += " ".join(reflection_points)
+        print(f"{agent.name} reflection summary: {reflection_summary}")
+        return reflection_summary
+
+    @staticmethod
+    def _regenerate_task_schema(agent, reflection, conversation_history, differences_found):
+        system_prompt = f"""
+        YOU: You are {agent.name}, a student who has just reflected on mathematical tasks and identified areas for improvement.
+        Based on your reflection summary, the discussion context, and differences found with your current task schema,
+        generate a new task schema that addresses these insights, improves upon past errors, and aligns with your persona.
+
+        CURRENT TASK SCHEMA:
+        {agent.task_schema}
+
+        REFLECTION SUMMARY:
+        {reflection}
+
+        CONVERSATION HISTORY:
+        {conversation_history}
+
+        GOAL: Create a new task schema that adjusts to the reflection and discussion context. Ensure that tasks are updated,
+        descriptions are improved, and any errors or misunderstandings are corrected in the new schema.
+        """
+        response = gen_oai([{"role": "system", "content": system_prompt}])
+        new_task_schema = parse_json(response)
+        if not new_task_schema or not isinstance(new_task_schema, dict):
+            print(f"Invalid or failed schema generation for {agent.name}. Response was: {response}")
+            return agent.task_schema 
+        # print(f"Generated new schema for {agent.name}: {new_task_schema}")
+        return new_task_schema
 
 class Game:
     def __init__(self, agents, math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
@@ -80,12 +146,19 @@ class Game:
 
         if "message" in parsed:
             self.update_gamestate(agent.name, parsed["message"])
-            # Modify schema based on new interaction
-            reflect = self.reflect
-            agent.task_schema = CharacterSchemaModifier.modify_schema(agent, parsed["message"],reflect)
+            conversation_history = self.public_messages
+            
+            # Call reflect_and_decide to potentially update the schema
+            new_task_schema = CharacterSchemaModifier.reflect_and_decide(agent, parsed["message"], conversation_history)
+            
+            # Update the agent's schema if a new one is generated
+            if new_task_schema and new_task_schema != agent.task_schema:
+                print(f"Updating {agent.name}'s task schema.")
+                agent.task_schema = new_task_schema
 
         self._update_log(agent_data, current_round)
         return agent_data
+
 
     def _get_modules_for_round(self, current_round, total_rounds):
         if current_round == 1:
@@ -107,9 +180,9 @@ class Game:
         round_data = []
         modules = self._get_modules_for_round(current_round, total_rounds)
         target_keys = [module["name"] for module in modules]
-
+    
         shuffled_agents = self.agents[:]
-        random.shuffle(shuffled_agents)
+        #random.shuffle(shuffled_agents)
         for agent in shuffled_agents:
             print("=" * 20)
             placeholders = {"AGENT_NAME": agent.name}
@@ -142,7 +215,7 @@ class Game:
     def get_final_answers(self):
         final_answers = []
         for agent in self.agents:
-            instruction = "Based on our discussion, what is your final answer to the math problem? Provide your reasoning if necessary."
+            instruction = "Based on our discussion, what is your final answer based on your knowledge and what you have learned from the discussion."
             response = self.instruct_agent(agent, instruction)
             print(f"{agent.name} FINAL ANSWER: {response}")
             final_answers.append({"name": agent.name, "final_answer": response})
