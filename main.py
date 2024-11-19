@@ -12,6 +12,19 @@ class Agent:
         self.task_schema = task_schema  # Ensures task_schema is correctly initialized
         self.messages = []
 
+class CharacterSchemaModifier:
+    @staticmethod
+    def modify_schema(agent, interaction, reflect):
+        print(f"Before modification for {agent.name}: {agent.task_schema}")  # Print before modification
+
+        # Example modification logic using self.reflect
+        for task_key, task in agent.task_schema.items():
+            if "reflection" in interaction.lower() and "factor" in task["description"].lower():
+                task["variables"]["reflected_state"] = f"Agent considered reflection with factorization issues."
+
+        print(f"After modification for {agent.name}: {agent.task_schema}")  # Print after modification
+        return agent.task_schema
+
 class Game:
     def __init__(self, agents, math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
         self.agents = agents
@@ -67,6 +80,9 @@ class Game:
 
         if "message" in parsed:
             self.update_gamestate(agent.name, parsed["message"])
+            # Modify schema based on new interaction
+            reflect = self.reflect
+            agent.task_schema = CharacterSchemaModifier.modify_schema(agent, parsed["message"],reflect)
 
         self._update_log(agent_data, current_round)
         return agent_data
@@ -123,12 +139,12 @@ class Game:
     def get_log(self):
         return self.log
 
+
+    intro = {
+        "name": "introduction",
+        "instruction": "Introduce yourself and share any initial thoughts you have on approaching the math problem.",
+        "description": "your introduction plan",
     }
-    # intro = {
-    #     "name": "introduction",
-    #     "instruction": "Introduce yourself and share any initial thoughts you have on approaching the math problem.",
-    #     "description": "your introduction plan",
-    # }
 
     reflect = {
         "name": "reflection",
