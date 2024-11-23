@@ -15,7 +15,7 @@ class Agent:
 class CharacterSchemaModifier:
     @staticmethod
     def reflect_and_decide(agent, interaction, conversation_history):
-        print(f"Before reflection for {agent.name}: {agent.task_schema}")
+        # print(f"Before reflection for {agent.name}: {agent.task_schema}")
         agent_reflection = CharacterSchemaModifier._reflect_on_conversation(agent, interaction, conversation_history)
         differences_found = CharacterSchemaModifier._compare_with_schema(agent.task_schema, conversation_history)
         decision = "update" if differences_found else "no_update"
@@ -235,7 +235,7 @@ class Game:
 
     plan = {
         "name": "plan",
-        "instruction": "Based on your reflection, write a plan for how to approach solving the math problem.",
+        "instruction": "During conversations, people generate reactions based on their own thought schemas and the content of the conversation and then respond with corresponding conversational behaviors. Please determine the conversational actions that the next speaker would take based on the following conversation content and thought schema. Actions to take: 80 (1)Plan actions for problem-solving: 26Preprint 81-Prompt a teammate to join the discussion 82-State an action plan 83-Ask a clarifying question about an action plan 84-Answer a clarifying question about an action plan 85-Second an action plan 86-Ask for agreement on an action plan 87 (2) Execute actions for problem-solving: 88-Execute an action plan and state the execution result 89-Ask a clarifying question about an execution result 90-Answer a clarifying question about an execution result 91-Second an execution result 92-Ask for agreement on an execution result",
         "description": "your plan",
     }
 
