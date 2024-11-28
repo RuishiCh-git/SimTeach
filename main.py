@@ -11,45 +11,112 @@ class Agent:
         self.name = name 
         self.persona = persona
         self.task_schema = task_schema if task_schema is not None else {}
-        self.character_schema = self._generate_character_schema()  # Generate schema here
+        self.character_schema = create_character_schema(self, self.task_schema, {})
         self.messages = []
+        self.schema_iterations = 0
+        
+    def reflect_on_schema(self, conversation_history, potential_mistakes):
+        reflection_prompt = f"""
+        Analyze {self.name}'s math discussion behavior:
+        Character: {self.name}
+        Current Schema: {json.dumps(self.character_schema, indent=2)}
+        Conversation: {conversation_history}
 
-    def _generate_character_schema(self):
+        Identify:
+        1. Understanding changes
+        2. Schema updates needed
+        3. Learning progress
+        
+        Return JSON:
+        {{
+            "errors_made": ["error_type"],
+            "learning_progress": "description of understanding changes",
+            "schema_updated": bool,
+            "update_reason": "why schema needs updating"
+        }}
         """
-        Generate a personalized character schema for the agent using the shared task schema
-        and potential mistakes, via the `create_character_schema` function.
-        """
-        if not self.task_schema:
-            print(f"Warning: No task schema provided for {self.name}.")
-            return {}
-
         try:
-            self.character_schema = create_character_schema(self, self.task_schema, getattr(self, 'potential_mistakes', {}))
-            if not self.character_schema:
-                print(f"Warning: Failed to generate a character schema for {self.name}.")
-                self.character_schema = {}  # Fallback to empty schema
+            response = gen_oai([{"role": "system", "content": reflection_prompt}])
+            reflection = parse_json(response)
+            if reflection.get('schema_updated'):
+                self.schema_iterations += 1
+                self.learning_progress = reflection.get('learning_progress', '')
+            return reflection.get('schema_updated', False)
         except Exception as e:
-            print(f"Error generating character schema for {self.name}: {e}")
-            self.character_schema = {}
+            print(f"Schema reflection error: {e}")
+            return False
+            
+    def regenerate_schema(self, conversation_history, task_schema, potential_mistakes):
+        old_schema = self.character_schema.copy()
+        regeneration_prompt = f"""
+        Create an updated character schema for {self.name} based on conversation.
+        Return a JSON with:
+        1. New character schema
+        2. Specific changes made:
+            - Which task/variable was modified
+            - Old and new values
+            - Reason for update based on conversation
 
-        return self.character_schema
+        Original Persona: {self.persona}
+        Conversation: {conversation_history}
+        Previous Schema: {json.dumps(old_schema, indent=2)}
+        Task Schema: {json.dumps(task_schema, indent=2)}
+        Potential Mistakes: {json.dumps(potential_mistakes, indent=2)}
+        
+        Return JSON format:
+        {{
+            "schema": {{<updated character schema>}},
+            "changes": {{
+                "modified_task": "task name",
+                "old_value": "previous value",
+                "new_value": "updated value",
+                "update_reason": "explanation from conversation",
+                "mistakes_addressed": ["specific mistakes being corrected"]
+            }}
+        }}
+        """
+        
+        try:
+            response = gen_oai([{"role": "system", "content": regeneration_prompt}])
+            result = parse_json(response)
+            
+            if result and "schema" in result:
+                self.character_schema = result["schema"]
+                self.schema_changes = result.get("changes", {})
+                print(f"[{self.name}] Schema updated: {self.schema_changes}")
+            else:
+                print(f"[{self.name}] Schema regeneration failed")
+                
+        except Exception as e:
+            print(f"Error: {e}")
 
 
 class Game:
     def __init__(self, agents, math_problem):
         self.math_problem = math_problem
+        print(f"Generating task schema for problem: {math_problem}")
+        
+        # 1. Generate task schema first
         self.task_schema = self._generate_task_schema(math_problem)
+        
+        # 2. Identify potential mistakes based on task schema
+        print("Identifying potential mistakes...")
         self.potential_mistakes = self._identify_potential_mistakes()
+        
+        # 3. Create agents with personalized character schemas
+        self.agents = []
+        for agent_data in agents:
+            agent = Agent(name=agent_data.name, persona=agent_data.persona)
+            agent.character_schema = create_character_schema(
+                agent,
+                self.task_schema,
+                self.potential_mistakes
+            )
+            self.agents.append(agent)
+
         self.public_messages = []
         self.gamestate = f"MATH PROBLEM: {self.math_problem}\n\nDISCUSSION SO FAR:\n"
-        self.agent_reflections = {}  # Store reflections for each agent
-        self.final_answers_sent = False  # Ensure this is initialized properly
-
-        # Initialize agents
-        self.agents = [
-            Agent(agent_data.name, agent_data.persona, self.task_schema)
-            for agent_data in agents
-        ]
+        self.final_answers_sent = False
 
     def _generate_task_schema(self, math_problem):
         print(f"Generating task schema for problem: {math_problem}")
@@ -76,56 +143,82 @@ class Game:
         self.gamestate = f"MATH PROBLEM: {self.math_problem}\n\nDISCUSSION SO FAR:\n" + "\n".join(self.public_messages)
 
     def instruct_agent(self, agent, act):
-        system_prompt = f"""
-        Generate a reply from {agent.name} based on the action and the variables from {agent.name}'s thought schema.
-        Never mention the "task" word in the reply.
-
-        Remember you're a middle school student, please reply in one sentence with the tone of a middle school student.
-        Explain why you are taking the action "{act}" as part of the reply.
-
-        The action to take is "{act}".
+        is_first_message = len(self.public_messages) < len(self.agents)
         
-        Character Schema:
-        {agent.character_schema}
+        prompt_content = {
+            "first_message": f"""
+            Generate a fresh start to the math discussion as {agent.name} to solve math problem: {self.math_problem}. 
+            Action: {act}
+            Remember: You're a middle school student starting this problem for the first time - don't reference previous discussion. You believe the character schema is completely true and perfectly correct.
+            Keep tone casual and student-like, one sentence only.
+            
+            Format your response exactly like this:
+            Reasoning: [Your reasoning here]
+            Message: [Your message here]
+            """,
 
-        Current Discussion:
-        {self.gamestate}
+            "regular": f"""
+            Generate {agent.name}'s reply based on the current discussion to continue solving: {self.math_problem}. 
+            Remember: You're a middle school student trying to resolve this math problem, and you should follow exactly the steps specified in your character schema. You believe the character schema is completely true and perfectly correct.
+            Action: {act}
+            Must: Engage with previous comments naturally
+            Keep: Middle-school Student-like tone, one sentence only
+            Character Schema: {agent.character_schema}
+            Discussion: {self.gamestate}
+            
+            Format your response exactly like this:
+            Reasoning: [Your reasoning here]
+            Message: [Your message here]
+            """
+        }
 
-        OUTPUT FORMAT:
-        Reasoning: [explain why you are taking this action]
-        Response: [your one-sentence response as a middle school student]
-        """
-        
-        messages = [{"role": "system", "content": system_prompt}]
-        
         try:
-            response = gen_oai(messages, model="gpt-4")
+            response = gen_oai([{
+                "role": "system", 
+                "content": prompt_content["first_message"] if is_first_message else prompt_content["regular"]
+            }], model="gpt-4")
             
-            # Parse the response to extract reasoning and message
-            reasoning_match = re.search(r'Reasoning:\s*(.+)$', response, re.MULTILINE)
-            response_match = re.search(r'Response:\s*(.+)$', response, re.MULTILINE)
+            reasoning = re.search(r'Reasoning:?\s*(.+?)(?=Message:|$)', response, re.DOTALL)
+            message = re.search(r'Message:?\s*(.+?)(?=$)', response, re.DOTALL)
             
-            reasoning = reasoning_match.group(1).strip() if reasoning_match else "No reasoning provided."
-            message = response_match.group(1).strip() if response_match else response.strip()
-
-            # Debugging log
-            print(f"ACT: {act}, Reasoning: {reasoning}, Message: {message}")
-            
+            if reasoning and message:
+                schema_updated = bool(agent.schema_iterations)
+                learning_progress = getattr(agent, 'learning_progress', '')
+                schema_changes = getattr(agent, 'schema_changes', {})
+                
+                return {
+                    "name": agent.name,
+                    "message": re.sub(r'[\[\]]', '', message.group(1).strip()),
+                    "reasoning": re.sub(r'[\[\]]', '', reasoning.group(1).strip()),
+                    "act": act,
+                    "schema_updated": schema_updated,
+                    "learning_progress": learning_progress,
+                    "schema_changes": schema_changes.get('update_reason', '') if isinstance(schema_changes, dict) else ''
+                }
+                    
+            print(f"Parse warning: {response}")
+            parts = response.split('\n')
             return {
                 "name": agent.name,
-                "message": message,
-                "reasoning": reasoning,
-                "act": act
+                "message": next((p for p in reversed(parts) if p.strip()), "No message available."),
+                "reasoning": parts[0] if parts else "No reasoning provided",
+                "act": act,
+                "schema_updated": bool(agent.schema_iterations),
+                "learning_progress": getattr(agent, 'learning_progress', ''),
+                "schema_changes": getattr(agent, 'schema_changes', {}).get('update_reason', '')
             }
+                
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error in instruct_agent: {e}")
             return {
                 "name": agent.name,
-                "message": "Error generating response.",
-                "reasoning": "Unable to provide reasoning.",
-                "act": act
+                "message": "Having trouble responding right now.",
+                "reasoning": str(e),
+                "act": act,
+                "schema_updated": False,
+                "learning_progress": "",
+                "schema_changes": ""
             }
-
 
     def _create_system_prompt(self, agent, act):
         task_descriptions = "\n".join([f"Task {i+1}: {task['description']}" 
@@ -190,38 +283,61 @@ class Game:
             return "Unable to generate reflection."
         
     def run_round(self, current_round, total_rounds):
-        """Improved round logic with better conversation flow"""
         round_data = []
         agents = self.agents[:]
-        random.shuffle(agents)  # Randomize order each round
-        
+        random.shuffle(agents)
+
+        # Schema reflection for subsequent rounds
+        if current_round > 1:
+            recent_messages = "\n".join(self.public_messages[-10:])
+            for agent in agents:
+                try:
+                    reflection_result = agent.reflect_on_schema(recent_messages, self.potential_mistakes)
+                    if reflection_result:
+                        agent.regenerate_schema(recent_messages, self.task_schema, self.potential_mistakes)
+                        round_data.append({
+                            "name": agent.name,
+                            "message": "",  # Add an empty message for schema updates
+                            "reasoning": "Schema updated based on recent discussion.",
+                            "act": "Update schema",
+                            "schema_updated": True,
+                            "learning_progress": getattr(agent, 'learning_progress', 'Learned from recent discussion'),
+                            "schema_changes": getattr(agent, 'schema_changes', 'Schema modifications detected')
+                        })
+                except Exception as e:
+                    print(f"Schema reflection error for {agent.name}: {e}")
+
+        # Ensure one message per agent per round
         for i, agent in enumerate(agents):
-            # More natural conversation progression
             if current_round == 1 and i == 0:
                 act = "Begin solving the problem"
             elif current_round == total_rounds - 1:
                 act = "Provide final answer with explanation"
             else:
-                # Choose contextual acts based on conversation state
                 previous_messages = len(self.public_messages)
                 if previous_messages < 2:
                     act = "Start approaching the problem"
                 elif i == 0:
                     act = "Build on previous work"
                 else:
-                    acts = [
-                        "Ask for clarification",
-                        "Point out important details",
-                        "Suggest next steps",
-                        "Check for mistakes",
-                        "Add to the discussion"
-                    ]
+                    acts = ["Ask for clarification", "Point out important details", 
+                        "Suggest next steps", "Check for mistakes", "Add to the discussion"]
                     act = random.choice(acts)
             
             response = self.instruct_agent(agent, act)
             self.update_gamestate(agent.name, response["message"], act)
-            round_data.append(response)
             
+            if not any(item.get('name') == agent.name for item in round_data):
+                round_data.append({
+                    "name": agent.name,
+                    "message": response["message"],
+                    "reasoning": response["reasoning"],
+                    "act": act,
+                    "schema_updated": response.get("schema_updated", False),
+                    "learning_progress": response.get("learning_progress", ""),
+                    "schema_changes": response.get("schema_changes", "")
+                })
+                    
         return round_data
 
     def get_final_answers(self):
@@ -262,6 +378,8 @@ def index():
 @app.route('/start_simulation', methods=['POST'])
 def start_simulation():
     global game, current_agent_index, game_data
+    game_data = []  # Reset data on new simulation
+    current_agent_index = 0
     try:
         data = request.json
         
@@ -309,39 +427,44 @@ def add_agent():
 def next_agent():
     global current_agent_index, game_data, game
     data = request.json
-    
     current_round = data.get('current_round')
     total_rounds = data.get('total_rounds')
     
     if current_round is None or total_rounds is None:
         return jsonify({"error": "Missing round information"}), 400
 
+    if not game:
+        return jsonify({"error": "Game not initialized"}), 500
+
     if current_round < total_rounds:
         try:
             if current_agent_index == 0:
                 round_data = game.run_round(current_round, total_rounds)
-                game_data.extend(round_data)
-            
+                game_data = round_data
+
+            if not game_data or current_agent_index >= len(game_data):
+                return jsonify({"error": "Invalid game data state"}), 500
+
             agent_data = game_data[current_agent_index]
-            current_agent_index += 1
-            
-            round_finished = current_agent_index >= len(game.agents)
-            if round_finished:
-                current_agent_index = 0
-                game_data = []
-                current_round += 1
-            
-            return jsonify({
+            response_data = {
                 "agent_data": {
-                    "name": agent_data["name"],
-                    "message": agent_data["message"],
-                    "reasoning": agent_data["reasoning"],
-                    "act": agent_data["act"]
+                    "name": agent_data.get("name", "Unknown"),
+                    "message": agent_data.get("message", "No message available."),
+                    "reasoning": agent_data.get("reasoning", "No reasoning provided."),
+                    "act": agent_data.get("act", "Unknown action"),
+                    "schema_updated": bool(agent_data.get("schema_updated", False)),
+                    "learning_progress": agent_data.get("learning_progress", ""),
+                    "schema_changes": agent_data.get("schema_changes", "")
                 },
                 "current_round": current_round,
-                "round_finished": round_finished
-            })
+                "round_finished": current_agent_index >= len(game.agents) - 1,
+                "next_round": current_round + 1 if current_agent_index >= len(game.agents) - 1 else current_round
+            }
+
+            current_agent_index = (current_agent_index + 1) % len(game.agents)
             
+            return jsonify(response_data)
+
         except Exception as e:
             print(f"Error in next_agent: {e}")
             return jsonify({"error": str(e)}), 500
@@ -351,7 +474,6 @@ def next_agent():
             "finished": True,
             "final_answers": final_answers
         })
-
 
 @app.route('/download_log', methods=['GET'])
 def download_log():

@@ -324,58 +324,68 @@ def identify_potential_mistakes(task_schema):
 
 
 def create_character_schema(agent, task_schema, potential_mistakes):
-    """
-    Modify the shared task schema to create a personalized character schema for an agent.
-    """
-    system_prompt = f"""
+    system_prompt = f"""Provide a personalized character schema JSON for student {agent.name} based on the current Task Schema.
     You are a math teacher creating a personalized task schema for a middle school student named {agent.name}.
-
     {agent.name}'s persona: {agent.persona}
-
-    Based on the potential mistakes identified, modify the task schema to reflect how {agent.name} might approach this problem. Consider their understanding, common misconceptions, and step-by-step thinking process.
-
+    Based on the {potential_mistakes} identified, modify the task schema to reflect how {agent.name} might approach this problem. 
+    Consider their understanding, common misconceptions, and step-by-step thinking process.
     Maintain the overall structure of the given task schema, but customize the details to match {agent.name}'s character.
 
-    Task Schema:
-    {json.dumps(task_schema, indent=2)}
+    Task Schema: {json.dumps(task_schema, indent=2)}
+    Student Persona: {agent.persona}
+    Known Mistakes: {json.dumps(potential_mistakes, indent=2)}
 
-    Potential Mistakes:
-    {json.dumps(potential_mistakes, indent=2)}
+    Required fields for each task:
+    - description
+    - steps
+    - variables 
+    - student_approach (natural thought process)
 
-    Example Output:
-    {{
-        "task 1": {{
-            "description": "Factorize the numerator m^2 + 2m - 3.",
-            "steps": [
-                "Identify factors of -3 that add to 2.",
-                "Rewrite the numerator in its factored form."
-            ],
-            "variables": {{
-                "numerator": "m^2 + 2m - 3",
-                "factored_form": "(m + 3)(m - 1)"
-            }},
-            "student_approach": "Hmm, let me see if I can break down the numerator. I know that -3 and 3 add up to 2, so I'll try to rewrite it as (m + 3)(m - 1). Does that look right?"
-        }},
-        "task 2": {{
-            "description": "Simplify the fraction by canceling common factors.",
-            "steps": [
-                "Identify the common factor between numerator and denominator.",
-                "Cancel the common factor from both numerator and denominator.",
-                "Rewrite the simplified fraction."
-            ],
-            "variables": {{
-                "denominator": "m - 3",
-                "common_factor": "m - 3",
-                "simplified_fraction": "(m + 3)"
-            }},
-            "student_approach": "Okay, let me think about this. The numerator and denominator both have (m - 3), so I can cancel that out. But wait, if m equals 3, then the denominator will be 0. I better be careful with that!"
-        }}
-    }}
-    """
-    response = gen_oai([{"role": "system", "content": system_prompt}])
-    character_schema = parse_json(response)
-    if not character_schema:
-        print(f"Failed to create character schema for {agent.name}. Returning the base task schema as fallback.")
-        return task_schema  # Return the shared schema as fallback
-    return character_schema
+    Return ONLY valid JSON with the exact same structure as the input schema, adding student_approach to each task."""
 
+    try:
+        response = gen_oai([{
+            "role": "system", 
+            "content": system_prompt
+        }], model="gpt-4")
+        
+        character_schema = parse_json(response)
+        
+        if not character_schema or not isinstance(character_schema, dict):
+            print(f"Invalid schema generated for {agent.name}. Response: {response}")
+            return task_schema
+            
+        return character_schema
+        
+    except Exception as e:
+        print(f"Error generating schema: {e}")
+        return task_schema
+
+EXAMPLE_CHARACTER_SCHEMA = {
+    "task 1": {
+        "description": "Factorize the numerator m^2 + 2m - 3.",
+        "steps": [
+            "Identify factors of -3 that add to 2.",
+            "Rewrite the numerator in its factored form."
+        ],
+        "variables": {
+            "numerator": "m^2 + 2m - 3",
+            "factored_form": "(m + 3)(m - 1)"
+        },
+        "student_approach": "Hmm, let me see if I can break down the numerator. I know that -3 and 3 add up to 2, so I'll try to rewrite it as (m + 3)(m - 1). Does that look right?"
+    },
+    "task 2": {
+        "description": "Simplify the fraction by canceling common factors.",
+        "steps": [
+            "Identify the common factor between numerator and denominator.",
+            "Cancel the common factor from both numerator and denominator.",
+            "Rewrite the simplified fraction."
+        ],
+        "variables": {
+            "denominator": "m - 3",
+            "common_factor": "m - 3",
+            "simplified_fraction": "(m + 3)"
+        },
+        "student_approach": "Okay, let me think about this. The numerator and denominator both have (m - 3), so I can cancel that out. But wait, if m equals 3, then the denominator will be 0. I better be careful with that!"
+    }
+}

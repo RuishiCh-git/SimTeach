@@ -214,6 +214,13 @@
         margin-right: 5px;
     }
 
+    /* Add to your CSS */
+    .schema-update {
+        display: inline-block;
+        margin-left: 5px;
+        cursor: help;
+    }
+
     /* Styles for Thought Process Section */
     .agent-info {
       padding: 16px;
@@ -362,48 +369,84 @@
     });
 
     function updateRoundInfo() {
-      roundInfo.textContent = `Round ${currentRound} of ${totalRounds - 1}`;
-    }
+          if (currentRound >= totalRounds) {
+              roundInfo.textContent = `Final Round`;
+          } else {
+              roundInfo.textContent = `Round ${currentRound} of ${totalRounds - 1}`;
+          }
+      }
 
     function displayMessage(agentData) {
-        const agentRow = document.createElement('div');
-        agentRow.className = 'agent-row';
+      // Add debug logging
+      console.log("Displaying message for:", agentData);
+      
+      const agentRow = document.createElement('div');
+      agentRow.className = 'agent-row';
 
-        const messageGroup = document.createElement('div');
-        messageGroup.className = 'message-group';
+      const messageGroup = document.createElement('div');
+      messageGroup.className = 'message-group';
 
-        const message = document.createElement('div');
-        message.className = 'message';
-        message.textContent = agentData.message || "No message available.";
+      // Create agent name element
+      const nameElement = document.createElement('div');
+      nameElement.className = 'agent-name';
+      nameElement.textContent = agentData.name || "Unknown Agent";
 
-        const nameElement = document.createElement('div');
-        nameElement.className = 'agent-name';
-        nameElement.textContent = agentData.name || "Unknown Agent";
+      // Add schema update indicator if needed
+      if (agentData.schema_updated) {
+          const updateIndicator = document.createElement('span');
+          updateIndicator.className = 'schema-update';
+          updateIndicator.textContent = ' 💡';
+          updateIndicator.title = 'Understanding updated';
+          nameElement.appendChild(updateIndicator);
+      }
 
-        // Attach tooltip to the message bubble for action and reasoning
-        const reasoning = agentData.reasoning || "Reasoning not provided.";
-        const act = agentData.act || "Action not defined.";
+      // Create message element with proper content checking
+      const message = document.createElement('div');
+      message.className = 'message';
+      message.textContent = agentData.message || "No message available.";
 
-        tippy(message, {
-            content: `
-                <div>
-                    <strong>Action Taken:</strong> ${act}<br>
-                    <strong>Reasoning:</strong> ${reasoning}
-                </div>
-            `,
-            allowHTML: true,
-            theme: 'light',
-            interactive: true
-        });
+      // Enhanced tooltip content with proper null checks
+      const tooltipContent = `
+          <div class="agent-info">
+              <h4>Action & Reasoning</h4>
+              <p><strong>Action:</strong> ${agentData.act || 'No action specified'}</p>
+              <p><strong>Reasoning:</strong> ${agentData.reasoning || 'No reasoning provided'}</p>
+              ${agentData.schema_updated ? `
+                  <h4>Learning Progress</h4>
+                  <p>${agentData.learning_progress || 'No learning progress recorded'}</p>
+                  <h4>Schema Changes</h4>
+                  <p>${agentData.schema_changes || 'No changes recorded'}</p>
+              ` : ''}
+          </div>
+      `;
 
-        messageGroup.appendChild(message);
-        agentRow.appendChild(nameElement);
-        agentRow.appendChild(messageGroup);
+      // Initialize tooltip with error handling
+      try {
+          tippy(message, {
+              content: tooltipContent,
+              allowHTML: true,
+              theme: 'light',
+              interactive: true,
+              maxWidth: 350
+          });
+      } catch (error) {
+          console.error("Error initializing tooltip:", error);
+      }
 
-        gameContainer.appendChild(agentRow);
-        gameContainer.scrollTop = gameContainer.scrollHeight;
+      // Assemble the message components
+      messageGroup.appendChild(message);
+      agentRow.appendChild(nameElement);
+      agentRow.appendChild(messageGroup);
+
+      // Add to container and scroll
+      const gameContainer = document.getElementById('game-container');
+      if (gameContainer) {
+          gameContainer.appendChild(agentRow);
+          gameContainer.scrollTop = gameContainer.scrollHeight;
+      } else {
+          console.error("Game container not found");
+      }
     }
-
 
 
     function showLoadingSpinner() {
@@ -427,17 +470,17 @@
         })
         .then(response => response.json())
         .then(data => {
-            console.log("[DEBUG] Agent Data:", data.agent_data); // Verify ACT and reasoning
             if (data.finished) {
                 displayFinalAnswers(data.final_answers);
-            } else {
-                displayMessage(data.agent_data); // Pass agent data including ACT and reasoning
-                if (data.round_finished) {
-                    currentRound = data.current_round;
-                    updateRoundInfo();
-                }
-                setTimeout(fetchNextAgent, 500);
+              } else {
+            console.log("Agent data received:", data.agent_data); // Add this line for debugging
+            displayMessage(data.agent_data);
+            if (data.round_finished) {
+                currentRound = data.next_round;
+                updateRoundInfo();
             }
+            setTimeout(fetchNextAgent, 500);
+          }
         })
         .catch(error => console.error("[ERROR] Fetch Next Agent:", error));
     }
