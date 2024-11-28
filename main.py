@@ -295,15 +295,12 @@ class Game:
                     reflection_result = agent.reflect_on_schema(recent_messages, self.potential_mistakes)
                     if reflection_result:
                         agent.regenerate_schema(recent_messages, self.task_schema, self.potential_mistakes)
-                        round_data.append({
-                            "name": agent.name,
-                            "message": "",  # Add an empty message for schema updates
-                            "reasoning": "Schema updated based on recent discussion.",
-                            "act": "Update schema",
+                        # Store schema update info, but don't append to round_data yet
+                        agent.schema_update_info = {
                             "schema_updated": True,
                             "learning_progress": getattr(agent, 'learning_progress', 'Learned from recent discussion'),
                             "schema_changes": getattr(agent, 'schema_changes', 'Schema modifications detected')
-                        })
+                        }
                 except Exception as e:
                     print(f"Schema reflection error for {agent.name}: {e}")
 
@@ -327,19 +324,25 @@ class Game:
             response = self.instruct_agent(agent, act)
             self.update_gamestate(agent.name, response["message"], act)
             
-            if not any(item.get('name') == agent.name for item in round_data):
-                round_data.append({
-                    "name": agent.name,
-                    "message": response["message"],
-                    "reasoning": response["reasoning"],
-                    "act": act,
-                    "schema_updated": response.get("schema_updated", False),
-                    "learning_progress": response.get("learning_progress", ""),
-                    "schema_changes": response.get("schema_changes", "")
-                })
-                    
-        return round_data
+            # Combine schema update info (if any) with the agent's response
+            agent_data = {
+                "name": agent.name,
+                "message": response["message"],
+                "reasoning": response["reasoning"],
+                "act": act,
+                "schema_updated": False,
+                "learning_progress": "",
+                "schema_changes": ""
+            }
+            
+            if hasattr(agent, 'schema_update_info'):
+                agent_data.update(agent.schema_update_info)
+                delattr(agent, 'schema_update_info')  # Clear the temporary attribute
+            
+            round_data.append(agent_data)
 
+        return round_data
+    
     def get_final_answers(self):
         if self.final_answers_sent:  # Check if final answers have already been sent
             print("Final answers already sent. Skipping generation.")

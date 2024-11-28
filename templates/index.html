@@ -376,76 +376,80 @@
           }
       }
 
-    function displayMessage(agentData) {
-      // Add debug logging
-      console.log("Displaying message for:", agentData);
-      
-      const agentRow = document.createElement('div');
-      agentRow.className = 'agent-row';
+      function displayMessage(agentData) {
+        // Add debug logging
+        console.log("Displaying message for:", agentData);
+        
+        const agentRow = document.createElement('div');
+        agentRow.className = 'agent-row';
 
-      const messageGroup = document.createElement('div');
-      messageGroup.className = 'message-group';
+        const messageGroup = document.createElement('div');
+        messageGroup.className = 'message-group';
 
-      // Create agent name element
-      const nameElement = document.createElement('div');
-      nameElement.className = 'agent-name';
-      nameElement.textContent = agentData.name || "Unknown Agent";
+        // Create agent name element
+        const nameElement = document.createElement('div');
+        nameElement.className = 'agent-name';
+        nameElement.textContent = agentData.name || "Unknown Agent";
 
-      // Add schema update indicator if needed
-      if (agentData.schema_updated) {
-          const updateIndicator = document.createElement('span');
-          updateIndicator.className = 'schema-update';
-          updateIndicator.textContent = ' 💡';
-          updateIndicator.title = 'Understanding updated';
-          nameElement.appendChild(updateIndicator);
-      }
+        // Add schema update indicator if needed
+        if (agentData.schema_updated) {
+            const updateIndicator = document.createElement('span');
+            updateIndicator.className = 'schema-update';
+            updateIndicator.textContent = ' 💡';
+            updateIndicator.title = 'Understanding updated';
+            nameElement.appendChild(updateIndicator);
+        }
 
-      // Create message element with proper content checking
-      const message = document.createElement('div');
-      message.className = 'message';
-      message.textContent = agentData.message || "No message available.";
+        // Create message element with proper content checking
+        const message = document.createElement('div');
+        message.className = 'message';
+        message.textContent = agentData.message || "No message available.";
 
-      // Enhanced tooltip content with proper null checks
-      const tooltipContent = `
-          <div class="agent-info">
-              <h4>Action & Reasoning</h4>
-              <p><strong>Action:</strong> ${agentData.act || 'No action specified'}</p>
-              <p><strong>Reasoning:</strong> ${agentData.reasoning || 'No reasoning provided'}</p>
-              ${agentData.schema_updated ? `
-                  <h4>Learning Progress</h4>
-                  <p>${agentData.learning_progress || 'No learning progress recorded'}</p>
-                  <h4>Schema Changes</h4>
-                  <p>${agentData.schema_changes || 'No changes recorded'}</p>
-              ` : ''}
-          </div>
-      `;
+        // Enhanced tooltip content with proper null checks
+        const tooltipContent = `
+            <div class="agent-info">
+                <h4>Action & Reasoning</h4>
+                <p><strong>Action:</strong> ${agentData.act || 'No action specified'}</p>
+                <p><strong>Reasoning:</strong> ${agentData.reasoning || 'No reasoning provided'}</p>
+                ${agentData.schema_updated ? `
+                    <h4>Learning Progress</h4>
+                    <p>${agentData.learning_progress || 'No learning progress recorded'}</p>
+                    <h4>Schema Changes</h4>
+                    <p>${
+                        typeof agentData.schema_changes === 'object' ? 
+                        agentData.schema_changes.update_reason || 'No specific changes recorded' :
+                        agentData.schema_changes || 'No changes recorded'
+                    }</p>
+                ` : ''}
+            </div>
+        `;
 
-      // Initialize tooltip with error handling
-      try {
-          tippy(message, {
-              content: tooltipContent,
-              allowHTML: true,
-              theme: 'light',
-              interactive: true,
-              maxWidth: 350
-          });
-      } catch (error) {
-          console.error("Error initializing tooltip:", error);
-      }
+        // Initialize tooltip with error handling
+        try {
+            tippy(message, {
+                content: tooltipContent,
+                allowHTML: true,
+                theme: 'light',
+                interactive: true,
+                maxWidth: 350
+            });
+        } catch (error) {
+            console.error("Error initializing tooltip:", error);
+        }
 
-      // Assemble the message components
-      messageGroup.appendChild(message);
-      agentRow.appendChild(nameElement);
-      agentRow.appendChild(messageGroup);
+        // Assemble the message components
+        messageGroup.appendChild(message);
+        agentRow.appendChild(nameElement);
+        agentRow.appendChild(messageGroup);
 
-      // Add to container and scroll
-      const gameContainer = document.getElementById('game-container');
-      if (gameContainer) {
-          gameContainer.appendChild(agentRow);
-          gameContainer.scrollTop = gameContainer.scrollHeight;
-      } else {
-          console.error("Game container not found");
-      }
+        // Add to container and scroll
+        const gameContainer = document.getElementById('game-container');
+        if (gameContainer) {
+            gameContainer.appendChild(agentRow);
+            gameContainer.scrollTop = gameContainer.scrollHeight;
+        } else {
+            console.error("Game container not found");
+        }
     }
 
 
