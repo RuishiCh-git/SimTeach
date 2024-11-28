@@ -361,6 +361,7 @@ class Game:
         return final_answers
 
 
+
 def init_game(agents=[], math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
     # Convert dict agents to Agent instances
     initialized_agents = [

@@ -334,22 +334,30 @@
     const downloadLogBtn = document.getElementById('download-log');
 
     function displayFinalAnswers(finalAnswers) {
-        const finalAnswersContainer = document.createElement('div');
-        finalAnswersContainer.className = 'final-answers';
-        finalAnswersContainer.innerHTML = `
-            <h2>Final Answers</h2>
-            <ul>
-                ${finalAnswers.map(ans => `
-                    <li>
-                        <strong>${ans.name}:</strong> 
-                        ${ans.answer}
-                    </li>
-                `).join('')}
-            </ul>
-        `;
-        gameContainer.appendChild(finalAnswersContainer);
-        downloadLogBtn.style.display = 'inline-block';
+    // Remove any existing final answers to prevent duplicates
+    const existingFinalAnswers = document.querySelector('.final-answers');
+    if (existingFinalAnswers) {
+        existingFinalAnswers.remove();
     }
+
+    // Create and append the new final answers section
+    const finalAnswersContainer = document.createElement('div');
+    finalAnswersContainer.className = 'final-answers';
+    finalAnswersContainer.innerHTML = `
+        <h2>Final Answers</h2>
+        <ul>
+            ${finalAnswers.map(ans => `
+                <li>
+                    <strong>${ans.name}:</strong> 
+                    ${ans.answer}
+                </li>
+            `).join('')}
+        </ul>
+    `;
+    gameContainer.appendChild(finalAnswersContainer);
+    downloadLogBtn.style.display = 'inline-block';
+    }
+
     // State variables
     let currentRound = 0;
     let totalRounds = 3;
@@ -475,16 +483,19 @@
         .then(response => response.json())
         .then(data => {
             if (data.finished) {
+                // If finished, display final answers and stop further calls
                 displayFinalAnswers(data.final_answers);
-              } else {
-            console.log("Agent data received:", data.agent_data); // Add this line for debugging
+                return; // Exit early to stop further polling
+            }
+            
+            console.log("Agent data received:", data.agent_data); // Debugging
             displayMessage(data.agent_data);
+
             if (data.round_finished) {
                 currentRound = data.next_round;
                 updateRoundInfo();
             }
             setTimeout(fetchNextAgent, 500);
-          }
         })
         .catch(error => console.error("[ERROR] Fetch Next Agent:", error));
     }
