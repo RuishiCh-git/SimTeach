@@ -366,43 +366,45 @@
     }
 
     function displayMessage(agentData) {
-      const agentRow = document.createElement('div');
-      agentRow.className = 'agent-row';
-      
-      const messageGroup = document.createElement('div');
-      messageGroup.className = 'message-group';
-      
-      const message = document.createElement('div');
-      message.className = 'message';
-      message.textContent = agentData.message;
-      
-      const nameElement = document.createElement('div');
-      nameElement.className = 'agent-name';
-      nameElement.textContent = agentData.name;
-      
-      // Add tooltip with reflection and schema
-      tippy(nameElement, {
-          content: `
-              <div class="agent-info">
-                  <h4>Thought Process:</h4>
-                  <p>${agentData.reflection}</p>
-                  <h4>Character Schema:</h4>
-                  <pre>${JSON.stringify(agentData.schema, null, 2)}</pre>
-              </div>
-          `,
-          allowHTML: true,
-          theme: 'custom',
-          interactive: true,
-          placement: 'right'
-      });
-      
-      messageGroup.appendChild(message);
-      agentRow.appendChild(nameElement);
-      agentRow.appendChild(messageGroup);
-      
-      gameContainer.appendChild(agentRow);
-      gameContainer.scrollTop = gameContainer.scrollHeight;
-  }
+        const agentRow = document.createElement('div');
+        agentRow.className = 'agent-row';
+
+        const messageGroup = document.createElement('div');
+        messageGroup.className = 'message-group';
+
+        const message = document.createElement('div');
+        message.className = 'message';
+        message.textContent = agentData.message || "No message available.";
+
+        const nameElement = document.createElement('div');
+        nameElement.className = 'agent-name';
+        nameElement.textContent = agentData.name || "Unknown Agent";
+
+        // Attach tooltip to the message bubble for action and reasoning
+        const reasoning = agentData.reasoning || "Reasoning not provided.";
+        const act = agentData.act || "Action not defined.";
+
+        tippy(message, {
+            content: `
+                <div>
+                    <strong>Action Taken:</strong> ${act}<br>
+                    <strong>Reasoning:</strong> ${reasoning}
+                </div>
+            `,
+            allowHTML: true,
+            theme: 'light',
+            interactive: true
+        });
+
+        messageGroup.appendChild(message);
+        agentRow.appendChild(nameElement);
+        agentRow.appendChild(messageGroup);
+
+        gameContainer.appendChild(agentRow);
+        gameContainer.scrollTop = gameContainer.scrollHeight;
+    }
+
+
 
     function showLoadingSpinner() {
       loadingSpinner.style.display = 'inline-block';
@@ -425,21 +427,21 @@
         })
         .then(response => response.json())
         .then(data => {
-            hideLoadingSpinner();
+            console.log("[DEBUG] Agent Data:", data.agent_data); // Verify ACT and reasoning
             if (data.finished) {
-                displayFinalAnswers(data.final_answers);  // Show final answers in box
+                displayFinalAnswers(data.final_answers);
             } else {
-                // Show ongoing discussion
-                displayMessage(data.agent_data);
+                displayMessage(data.agent_data); // Pass agent data including ACT and reasoning
                 if (data.round_finished) {
                     currentRound = data.current_round;
                     updateRoundInfo();
                 }
-                showLoadingSpinner();
                 setTimeout(fetchNextAgent, 500);
             }
-        });
+        })
+        .catch(error => console.error("[ERROR] Fetch Next Agent:", error));
     }
+
     startGameBtn.addEventListener('click', () => {
     const selectedProblem = problemSelect.value;
     

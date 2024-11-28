@@ -11,7 +11,7 @@ class Agent:
         self.name = name 
         self.persona = persona
         self.task_schema = task_schema if task_schema is not None else {}
-        self.character_schema = {}
+        self.character_schema = self._generate_character_schema()  # Generate schema here
         self.messages = []
 
     def _generate_character_schema(self):
@@ -23,12 +23,17 @@ class Agent:
             print(f"Warning: No task schema provided for {self.name}.")
             return {}
 
-        character_schema = create_character_schema(self, self.task_schema, self.potential_mistakes)
-        if not character_schema:
-            print(f"Warning: Failed to generate a character schema for {self.name}.")
-            return self.task_schema  # Fallback to base task schema
+        try:
+            self.character_schema = create_character_schema(self, self.task_schema, getattr(self, 'potential_mistakes', {}))
+            if not self.character_schema:
+                print(f"Warning: Failed to generate a character schema for {self.name}.")
+                self.character_schema = {}  # Fallback to empty schema
+        except Exception as e:
+            print(f"Error generating character schema for {self.name}: {e}")
+            self.character_schema = {}
 
-        return character_schema
+        return self.character_schema
+
 
 class Game:
     def __init__(self, agents, math_problem):
@@ -38,7 +43,7 @@ class Game:
         self.public_messages = []
         self.gamestate = f"MATH PROBLEM: {self.math_problem}\n\nDISCUSSION SO FAR:\n"
         self.agent_reflections = {}  # Store reflections for each agent
-        self.final_answers_sent = False  # Flag to ensure final answers are sent only once
+        self.final_answers_sent = False  # Ensure this is initialized properly
 
         # Initialize agents
         self.agents = [
@@ -65,10 +70,10 @@ class Game:
         return potential_mistakes
 
     def update_gamestate(self, agent_name, message, act):
-        # Remove the act label from the message display
-        self.public_messages.append(message)
+        # Ensure the message format includes the agent's name
+        formatted_message = f"{agent_name}: {message}"
+        self.public_messages.append(formatted_message)  # Append to the discussion log
         self.gamestate = f"MATH PROBLEM: {self.math_problem}\n\nDISCUSSION SO FAR:\n" + "\n".join(self.public_messages)
-
 
     def instruct_agent(self, agent, act):
         system_prompt = f"""
@@ -76,13 +81,10 @@ class Game:
         Never mention the "task" word in the reply.
 
         Remember you're a middle school student, please reply in one sentence with the tone of a middle school student.
-        You believe that your character schema is completely correct, and all variables in reply must perfectly align to your own thought schema.
-        Reflect the character schema and thought process we discussed earlier. Feel free to express any confusion, ask clarifying questions, or propose ideas, even if they might not be completely correct.
+        Explain why you are taking the action "{act}" as part of the reply.
 
         The action to take is "{act}".
         
-        Before generating the reply, review the relevant tasks and variables from your character schema.
-
         Character Schema:
         {agent.character_schema}
 
@@ -90,25 +92,29 @@ class Game:
         {self.gamestate}
 
         OUTPUT FORMAT:
-        Related tasks index: [list relevant task numbers]
-        Grounding values from {agent.name}'s thoughts schema in those tasks: [list relevant values]
+        Reasoning: [explain why you are taking this action]
         Response: [your one-sentence response as a middle school student]
-        
         """
         
         messages = [{"role": "system", "content": system_prompt}]
         
         try:
             response = gen_oai(messages, model="gpt-4")
-            # Extract just the response part
+            
+            # Parse the response to extract reasoning and message
+            reasoning_match = re.search(r'Reasoning:\s*(.+)$', response, re.MULTILINE)
             response_match = re.search(r'Response:\s*(.+)$', response, re.MULTILINE)
-            cleaned_response = response_match.group(1) if response_match else response
+            
+            reasoning = reasoning_match.group(1).strip() if reasoning_match else "No reasoning provided."
+            message = response_match.group(1).strip() if response_match else response.strip()
+
+            # Debugging log
+            print(f"ACT: {act}, Reasoning: {reasoning}, Message: {message}")
             
             return {
                 "name": agent.name,
-                "message": cleaned_response,
-                "schema": agent.character_schema,
-                "reflection": self.generate_reflection(agent),
+                "message": message,
+                "reasoning": reasoning,
                 "act": act
             }
         except Exception as e:
@@ -116,10 +122,10 @@ class Game:
             return {
                 "name": agent.name,
                 "message": "Error generating response.",
-                "schema": {},
-                "reflection": "Unable to generate reflection.",
+                "reasoning": "Unable to provide reasoning.",
                 "act": act
             }
+
 
     def _create_system_prompt(self, agent, act):
         task_descriptions = "\n".join([f"Task {i+1}: {task['description']}" 
@@ -235,6 +241,7 @@ class Game:
         self.final_answers_sent = True  # Mark final answers as sent
         return final_answers
 
+
 def init_game(agents=[], math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
     # Convert dict agents to Agent instances
     initialized_agents = [
@@ -257,35 +264,32 @@ def start_simulation():
     global game, current_agent_index, game_data
     try:
         data = request.json
-        print(f"Received data: {data}")  # Debug logging
         
         problem_type = data.get('problem_type')
         if not problem_type:
             return jsonify({"error": "Problem type not provided"}), 400
-            
+        
         if problem_type not in PROBLEM_MAP:
             return jsonify({"error": "Invalid problem type"}), 400
         
         math_problem = PROBLEM_MAP[problem_type]['problem']
-        print(f"Selected problem: {math_problem}")  # Debug logging
         
         # Initialize game with selected problem
-        game = init_game(
-            agents=agent_list,
-            math_problem=math_problem
-        )
-        
-        if not game:
-            return jsonify({"error": "Failed to initialize game"}), 500
-        
+        game = init_game(agents=agent_list, math_problem=math_problem)
         current_agent_index = 0
         game_data = []
+
+        # Debugging: Ensure the game is initialized
+        if game:
+            print(f"Game initialized with math problem: {math_problem}")
+        else:
+            print("Failed to initialize game.")
         
         return jsonify({"status": "success"})
-        
     except Exception as e:
-        print(f"Error in start_simulation: {str(e)}")  # Debug logging
+        print(f"Error in start_simulation: {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @app.route('/add_agent', methods=['POST'])
 def add_agent():
@@ -328,7 +332,12 @@ def next_agent():
                 current_round += 1
             
             return jsonify({
-                "agent_data": agent_data,
+                "agent_data": {
+                    "name": agent_data["name"],
+                    "message": agent_data["message"],
+                    "reasoning": agent_data["reasoning"],
+                    "act": agent_data["act"]
+                },
                 "current_round": current_round,
                 "round_finished": round_finished
             })
@@ -343,9 +352,10 @@ def next_agent():
             "final_answers": final_answers
         })
 
+
 @app.route('/download_log', methods=['GET'])
 def download_log():
-    if game:
+    if game and game.public_messages:  # Check if game and messages exist
         log_content = "MATH DISCUSSION LOG\n"
         log_content += "=" * 50 + "\n\n"
         
@@ -363,18 +373,7 @@ def download_log():
         log_content += "DISCUSSION:\n"
         log_content += "=" * 50 + "\n\n"
         for i, message in enumerate(game.public_messages):
-            # Get speaker name
-            speaker_name = message.split()[0]
-            
-            # Add message with speaker info
-            log_content += f"[{speaker_name}]:\n"
-            log_content += f"Message: {message}\n"
-            
-            # Add reflection if available
-            if speaker_name in game.agent_reflections:
-                log_content += f"Thought Process: {game.agent_reflections[speaker_name]}\n"
-            
-            log_content += "-" * 30 + "\n\n"
+            log_content += f"[{i + 1}] {message}\n"
         
         # Create in-memory file
         mem_file = io.BytesIO()
@@ -388,6 +387,7 @@ def download_log():
             download_name='math_discussion.txt'
         )
     return jsonify({"error": "No discussion to download"})
+
 
 @app.route('/reset', methods=['POST'])
 def reset_game():
