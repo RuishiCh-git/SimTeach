@@ -4,249 +4,243 @@ import io
 from flask import Flask, render_template, jsonify, request, send_file
 from agents import agent_list
 from llm_utils import *
+from math_problems import PROBLEM_MAP
 
 class Agent:
-    def __init__(self, name, persona, task_schema):
-        self.name = name
+    def __init__(self, name, persona, task_schema=None):
+        self.name = name 
         self.persona = persona
-        self.task_schema = task_schema  # Ensures task_schema is correctly initialized
+        self.task_schema = task_schema if task_schema is not None else {}
+        self.character_schema = {}
         self.messages = []
 
-class CharacterSchemaModifier:
-    @staticmethod
-    def reflect_and_decide(agent, interaction, conversation_history):
-        # print(f"Before reflection for {agent.name}: {agent.task_schema}")
-        agent_reflection = CharacterSchemaModifier._reflect_on_conversation(agent, interaction, conversation_history)
-        differences_found = CharacterSchemaModifier._compare_with_schema(agent.task_schema, conversation_history)
-        decision = "update" if differences_found else "no_update"
-        if decision == "update":
-            #print(f"Detected differences for {agent.name}: {differences_found}")
-            new_task_schema = CharacterSchemaModifier._regenerate_task_schema(agent, agent_reflection, conversation_history, differences_found)
-            agent.task_schema = new_task_schema
-            print(f"After regeneration for {agent.name}: {agent.task_schema}")
-
-        return agent.task_schema
-
-
-    @staticmethod
-    def _compare_with_schema(task_schema, conversation_history):
+    def _generate_character_schema(self):
         """
-        Compares the agent's task schema with the content of the conversation history to detect changes or new insights.
-        Returns a list of detected differences for more nuanced decision-making.
+        Generate a personalized character schema for the agent using the shared task schema
+        and potential mistakes, via the `create_character_schema` function.
         """
-        detected_differences = []
-        for task_key, task in task_schema.items():
-            for message in conversation_history:
-                if isinstance(message, str):
-                    for var, value in task["variables"].items():
-                        if isinstance(value, str):
-                            if value.lower() not in message.lower():
-                                detected_differences.append({
-                                    "task_key": task_key,
-                                    "variable": var,
-                                    "expected_value": value,
-                                    "found_in_message": message
-                                })
-        return detected_differences if detected_differences else None
+        if not self.task_schema:
+            print(f"Warning: No task schema provided for {self.name}.")
+            return {}
 
-    @staticmethod
-    def _reflect_on_conversation(agent, interaction, conversation_history):
-        reflection_summary = f"{agent.name} reflected on their interactions and summarized as follows: "
-        reflection_points = []
+        character_schema = create_character_schema(self, self.task_schema, self.potential_mistakes)
+        if not character_schema:
+            print(f"Warning: Failed to generate a character schema for {self.name}.")
+            return self.task_schema  # Fallback to base task schema
 
-        if "correct" in interaction.lower() or "realize" in interaction.lower():
-            reflection_points.append("They made progress in correcting a misconception.")
-        else:
-            reflection_points.append("They did not detect a change in their understanding.")
-        if any("mistake" in msg.lower() for msg in conversation_history):
-            reflection_points.append("There was discussion about potential mistakes.")
-        reflection_summary += " ".join(reflection_points)
-        print(f"{agent.name} reflection summary: {reflection_summary}")
-        return reflection_summary
-
-    @staticmethod
-    def _regenerate_task_schema(agent, reflection, conversation_history, differences_found):
-        system_prompt = f"""
-        YOU: You are {agent.name}, a student who has just reflected on mathematical tasks and identified areas for improvement.
-        Based on your reflection summary, the discussion context, and differences found with your current task schema,
-        generate a new task schema that addresses these insights, improves upon past errors, and aligns with your persona.
-
-        CURRENT TASK SCHEMA:
-        {agent.task_schema}
-
-        REFLECTION SUMMARY:
-        {reflection}
-
-        CONVERSATION HISTORY:
-        {conversation_history}
-
-        GOAL: Create a new task schema that adjusts to the reflection and discussion context. Ensure that tasks are updated,
-        descriptions are improved, and any errors or misunderstandings are corrected in the new schema.
-        """
-        response = gen_oai([{"role": "system", "content": system_prompt}])
-        new_task_schema = parse_json(response)
-        if not new_task_schema or not isinstance(new_task_schema, dict):
-            print(f"Invalid or failed schema generation for {agent.name}. Response was: {response}")
-            return agent.task_schema 
-        #print(f"Generated new schema for {agent.name}: {new_task_schema}")
-        return new_task_schema
+        return character_schema
 
 class Game:
-    def __init__(self, agents, math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
-        self.agents = agents
+    def __init__(self, agents, math_problem):
         self.math_problem = math_problem
+        self.task_schema = self._generate_task_schema(math_problem)
+        self.potential_mistakes = self._identify_potential_mistakes()
         self.public_messages = []
-        self.round_number = 0
-        self.gamestate = f"Math Problem: {self.math_problem}\nStart by analyzing the problem.\n"
-        self.log = ""
+        self.gamestate = f"MATH PROBLEM: {self.math_problem}\n\nDISCUSSION SO FAR:\n"
+        self.agent_reflections = {}  # Store reflections for each agent
+        self.final_answers_sent = False  # Flag to ensure final answers are sent only once
 
-    def update_gamestate(self, agent_name, message):
-        self.public_messages.append(f"{agent_name}: {message}")
+        # Initialize agents
+        self.agents = [
+            Agent(agent_data.name, agent_data.persona, self.task_schema)
+            for agent_data in agents
+        ]
+
+    def _generate_task_schema(self, math_problem):
+        print(f"Generating task schema for problem: {math_problem}")
+        task_schema = generate_task_schema(math_problem)
+        if not task_schema:
+            print("Failed to generate task schema. Using an empty schema as fallback.")
+            return {}
+        print(f"Generated task schema: {task_schema}")
+        return task_schema
+
+    def _identify_potential_mistakes(self):
+        print("Identifying potential mistakes...")
+        potential_mistakes = identify_potential_mistakes(self.task_schema)
+        if not potential_mistakes:
+            print("Failed to identify potential mistakes. Using an empty dictionary as fallback.")
+            return {}
+        print(f"Identified potential mistakes: {potential_mistakes}")
+        return potential_mistakes
+
+    def update_gamestate(self, agent_name, message, act):
+        # Remove the act label from the message display
+        self.public_messages.append(message)
         self.gamestate = f"MATH PROBLEM: {self.math_problem}\n\nDISCUSSION SO FAR:\n" + "\n".join(self.public_messages)
 
-    def instruct_agent(self, agent, instruction):
-        system_prompt = self._create_system_prompt(agent)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": self.gamestate},
-            {"role": "user", "content": instruction}
-        ]
-        return gen_oai(messages)
 
-    def _create_system_prompt(self, agent):
-        task_descriptions = "\n".join(
-            [f"Task {i+1}: {task['description']}" for i, task in enumerate(agent.task_schema.values())]
-        )
-        return f"""
-        YOU: Generate a reply from {agent.name} based on the action and the variables from {agent.persona} thought schema. Remember you’re a middle school student , please reply in one sentence with the tone of a middle school student. You believe that your thought schema is completely correct , and all the variables in reply must be perfectly aligned to your own thought schema. 
-        MATH PROBLEM: "{self.math_problem}"
-        
-        TASK SCHEMA:
-        {task_descriptions}
+    def instruct_agent(self, agent, act):
+        system_prompt = f"""
+        Generate a reply from {agent.name} based on the action and the variables from {agent.name}'s thought schema.
+        Never mention the "task" word in the reply.
 
-        GOAL: Work with the group to solve the problem.
+        Remember you're a middle school student, please reply in one sentence with the tone of a middle school student.
+        You believe that your character schema is completely correct, and all variables in reply must perfectly align to your own thought schema.
+        Reflect the character schema and thought process we discussed earlier. Feel free to express any confusion, ask clarifying questions, or propose ideas, even if they might not be completely correct.
+
+        The action to take is "{act}".
         
-        STYLE: Write as if texting, with short messages and minimal punctuation. No emojis.
+        Before generating the reply, review the relevant tasks and variables from your character schema.
+
+        Character Schema:
+        {agent.character_schema}
+
+        Current Discussion:
+        {self.gamestate}
+
+        OUTPUT FORMAT:
+        Related tasks index: [list relevant task numbers]
+        Grounding values from {agent.name}'s thoughts schema in those tasks: [list relevant values]
+        Response: [your one-sentence response as a middle school student]
+        
         """
-
-    def get_agent_response(self, agent, current_round, total_rounds):
-        modules = self._get_modules_for_round(current_round, total_rounds)
-        target_keys = [module["name"] for module in modules]
-
-        instruction = modular_instructions(modules)
-        response = self.instruct_agent(agent, instruction)
-        parsed = parse_json(response, target_keys=target_keys)
-
-        agent_data = {"name": agent.name}
-        for key in target_keys:
-            if key in parsed:
-                agent_data[key] = parsed[key]
-                print(f"{agent.name} {key.upper()}: {parsed[key]}")
-                print()
-
-        if "message" in parsed:
-            self.update_gamestate(agent.name, parsed["message"])
-            conversation_history = self.public_messages
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        try:
+            response = gen_oai(messages, model="gpt-4")
+            # Extract just the response part
+            response_match = re.search(r'Response:\s*(.+)$', response, re.MULTILINE)
+            cleaned_response = response_match.group(1) if response_match else response
             
-            # Call reflect_and_decide to potentially update the schema
-            new_task_schema = CharacterSchemaModifier.reflect_and_decide(agent, parsed["message"], conversation_history)
-            
-            # Update the agent's schema if a new one is generated
-            if new_task_schema and new_task_schema != agent.task_schema:
-                print(f"Updating {agent.name}'s task schema.")
-                agent.task_schema = new_task_schema
+            return {
+                "name": agent.name,
+                "message": cleaned_response,
+                "schema": agent.character_schema,
+                "reflection": self.generate_reflection(agent),
+                "act": act
+            }
+        except Exception as e:
+            print(f"Error: {e}")
+            return {
+                "name": agent.name,
+                "message": "Error generating response.",
+                "schema": {},
+                "reflection": "Unable to generate reflection.",
+                "act": act
+            }
 
-        self._update_log(agent_data, current_round)
-        return agent_data
-
-
-    def _get_modules_for_round(self, current_round, total_rounds):
-        if current_round == 1:
-            return [self.intro, self.message]
-        else:
-            return [self.reflect, self.plan, self.message]
-
-    def _update_log(self, agent_data, current_round):
-        if current_round != self.round_number:
-            self.round_number = current_round
-            self.log += f"\n\n## Round {current_round}\n\n"
-
-        self.log += f"### {agent_data['name']}\n\n"
-        for key, value in agent_data.items():
-            if key != "name":
-                self.log += f"**{key.capitalize()}**: {value}\n\n"
-
-    def run_round(self, current_round, total_rounds):
-        round_data = []
-        modules = self._get_modules_for_round(current_round, total_rounds)
-        target_keys = [module["name"] for module in modules]
+    def _create_system_prompt(self, agent, act):
+        task_descriptions = "\n".join([f"Task {i+1}: {task['description']}" 
+                                     for i, task in enumerate(self.task_schema.values())])
+        
+        conversation_history = "\n".join(self.public_messages[-3:]) if self.public_messages else "No messages yet."
+        
+        return f"""
+        As {agent.name}, a {agent.persona}, respond to this math discussion.
+        
+        CONTEXT:
+        Math Problem: {self.math_problem}
+        Recent Messages:
+        {conversation_history}
+        
+        Task Schema:
+        {task_descriptions.strip()}
+        
+        Character Schema:
+        {agent.character_schema}
+        
+        INSTRUCTIONS:
+        1. Respond naturally as a middle school student
+        2. Stay in character as {agent.name}
+        3. Action required: {act}
+        4. Keep responses very brief (1-2 sentences maximum)
+        5. For final answers, clearly state your answer in this format: "My answer: [your answer]"
+        6. No emojis or excessive punctuation
+        """
     
-        shuffled_agents = self.agents[:]
-        #random.shuffle(shuffled_agents)
-        for agent in shuffled_agents:
-            print("=" * 20)
-            placeholders = {"AGENT_NAME": agent.name}
-            instruction = modular_instructions(modules)
-            prompt = fill_prompt(instruction, placeholders)
-            response = self.instruct_agent(agent, prompt)
-            parsed = parse_json(response, target_keys=target_keys)
+    def clean_response(self, response):
+        """Clean response text to make it more natural"""
+        cleaned = response
+        # Define response cleaning patterns
+        CLEANUP_PATTERNS = [
+            (r'\(Provide .*?\):', ''),
+            (r'My answer:', ''),
+            (r'My final answer:', ''),
+            (r'^\s*\w+:', ''),  # Remove name prefixes
+            (r'\s+', ' ')  # Clean up extra whitespace
+        ]
+        for pattern, replacement in CLEANUP_PATTERNS:
+            cleaned = re.sub(pattern, replacement, cleaned)
+        return cleaned.strip()
 
-            agent_data = {"name": agent.name}
-            for key in target_keys:
-                if key in parsed:
-                    agent_data[key] = parsed[key]
-                    print(f"{agent.name} {key.upper()}: {parsed[key]}")
-                    print()
-
-            if "message" in parsed:
-                self.update_gamestate(agent.name, parsed["message"])
+    def generate_reflection(self, agent):
+        """Generate a reflection based on the conversation history"""
+        reflection_prompt = f"""
+        Based on {agent.name}'s contributions to the math discussion so far, 
+        summarize their thought process and approach in 2-3 sentences.
+        Consider their understanding, strategy, and interaction with others.
+        
+        Previous messages:
+        {self.gamestate}
+        """
+        
+        try:
+            reflection = gen_oai([{"role": "system", "content": reflection_prompt}])
+            return reflection
+        except Exception as e:
+            print(f"Error generating reflection: {e}")
+            return "Unable to generate reflection."
+        
+    def run_round(self, current_round, total_rounds):
+        """Improved round logic with better conversation flow"""
+        round_data = []
+        agents = self.agents[:]
+        random.shuffle(agents)  # Randomize order each round
+        
+        for i, agent in enumerate(agents):
+            # More natural conversation progression
+            if current_round == 1 and i == 0:
+                act = "Begin solving the problem"
+            elif current_round == total_rounds - 1:
+                act = "Provide final answer with explanation"
+            else:
+                # Choose contextual acts based on conversation state
+                previous_messages = len(self.public_messages)
+                if previous_messages < 2:
+                    act = "Start approaching the problem"
+                elif i == 0:
+                    act = "Build on previous work"
+                else:
+                    acts = [
+                        "Ask for clarification",
+                        "Point out important details",
+                        "Suggest next steps",
+                        "Check for mistakes",
+                        "Add to the discussion"
+                    ]
+                    act = random.choice(acts)
             
-            round_data.append(agent_data)
-
-        print(f"Moving to next round. Current round: {current_round}")
-        return round_data, None, None
-
-    def log_user_agent(self, name, persona):
-        self.log = f"# Game Log\n\n## User-defined Agent\n\n```python\n{{'name': '{name}', 'persona': '{persona}'}}\n```\n"
-
-    def get_log(self):
-        return self.log
+            response = self.instruct_agent(agent, act)
+            self.update_gamestate(agent.name, response["message"], act)
+            round_data.append(response)
+            
+        return round_data
 
     def get_final_answers(self):
+        if self.final_answers_sent:  # Check if final answers have already been sent
+            print("Final answers already sent. Skipping generation.")
+            return []  # Return an empty list if already sent
+
+        print("Fetching final answers...")
         final_answers = []
         for agent in self.agents:
-            instruction = "Based on our discussion, what is your final answer based on your knowledge and what you have learned from the discussion."
-            response = self.instruct_agent(agent, instruction)
-            print(f"{agent.name} FINAL ANSWER: {response}")
-            final_answers.append({"name": agent.name, "final_answer": response})
+            response = self.instruct_agent(agent, "final answer")
+            message = response["message"]
+            message = re.sub(r'.*?(My answer:|Provide final answer with explanation:)', '', message).strip()
+            message = re.sub(f'^{agent.name}:\\s*', '', message).strip()
+            final_answers.append({"name": agent.name, "answer": message})
+        print(f"Final answers: {final_answers}")
+        self.final_answers_sent = True  # Mark final answers as sent
         return final_answers
-    
-    intro = {
-        "name": "introduction",
-        "instruction": "Introduce yourself and share any initial thoughts you have on approaching the math problem.",
-        "description": "your introduction plan",
-    }
-
-    reflect = {
-        "name": "reflection",
-        "instruction": "Reflect on what has been discussed so far. What do you know about the problem now? What potential solutions or mistakes have been identified?",
-        "description": "your reflection",
-    }
-
-    plan = {
-        "name": "plan",
-        "instruction": "During conversations, people generate reactions based on their own thought schemas and the content of the conversation and then respond with corresponding conversational behaviors. Please determine the conversational actions that the next speaker would take based on the following conversation content and thought schema. Actions to take: 80 (1)Plan actions for problem-solving: 26Preprint 81-Prompt a teammate to join the discussion 82-State an action plan 83-Ask a clarifying question about an action plan 84-Answer a clarifying question about an action plan 85-Second an action plan 86-Ask for agreement on an action plan 87 (2) Execute actions for problem-solving: 88-Execute an action plan and state the execution result 89-Ask a clarifying question about an execution result 90-Answer a clarifying question about an execution result 91-Second an execution result 92-Ask for agreement on an execution result",
-        "description": "your plan",
-    }
-
-    message = {
-        "name": "message",
-        "instruction": "Write a concise message to the group with your next step or question to help solve the math problem.",
-        "description": "your message",
-    }
 
 def init_game(agents=[], math_problem="Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)"):
-    initialized_agents = [Agent(agent_data["name"], agent_data["persona"], agent_data.get("task_schema", {})) for agent_data in agents]
+    # Convert dict agents to Agent instances
+    initialized_agents = [
+        Agent(agent["name"], agent["persona"], agent.get("task_schema")) 
+        for agent in agents
+    ]
     return Game(initialized_agents, math_problem=math_problem)
 
 app = Flask(__name__)
@@ -254,92 +248,155 @@ game = None
 current_agent_index = 0
 game_data = []
 
-# Flask route definitions remain the same
-
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/start_simulation', methods=['POST'])
+def start_simulation():
+    global game, current_agent_index, game_data
+    try:
+        data = request.json
+        print(f"Received data: {data}")  # Debug logging
+        
+        problem_type = data.get('problem_type')
+        if not problem_type:
+            return jsonify({"error": "Problem type not provided"}), 400
+            
+        if problem_type not in PROBLEM_MAP:
+            return jsonify({"error": "Invalid problem type"}), 400
+        
+        math_problem = PROBLEM_MAP[problem_type]['problem']
+        print(f"Selected problem: {math_problem}")  # Debug logging
+        
+        # Initialize game with selected problem
+        game = init_game(
+            agents=agent_list,
+            math_problem=math_problem
+        )
+        
+        if not game:
+            return jsonify({"error": "Failed to initialize game"}), 500
+        
+        current_agent_index = 0
+        game_data = []
+        
+        return jsonify({"status": "success"})
+        
+    except Exception as e:
+        print(f"Error in start_simulation: {str(e)}")  # Debug logging
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/add_agent', methods=['POST'])
 def add_agent():
     global game
     data = request.json
-    new_agent = {"name": data['name'], "persona": data['persona']}
+    new_agent = Agent(name=data['name'], persona=data['persona'])
     math_problem = data.get('math_problem', "Simplify the following, if possible: (m^2 + 2m - 3) / (m - 3)")
-    agent_list.append(new_agent)
-    game = init_game(agent_list, math_problem=math_problem)
-    game.log_user_agent(data['name'], data['persona'])
+    task_schema = generate_task_schema(math_problem)
+    potential_mistakes = identify_potential_mistakes(task_schema)
+    new_agent.character_schema = create_character_schema(new_agent, task_schema, potential_mistakes)
+    agent_list.append({"name": new_agent.name, "persona": new_agent.persona, "character_schema": new_agent.character_schema})
+    if game is None:
+        game = init_game(agent_list, math_problem=math_problem)
     return jsonify({"status": "success"})
 
 @app.route('/next_agent', methods=['POST'])
 def next_agent():
-    global current_agent_index, game_data
+    global current_agent_index, game_data, game
     data = request.json
-    current_round = data['current_round']
-    total_rounds = data['total_rounds']
+    
+    current_round = data.get('current_round')
+    total_rounds = data.get('total_rounds')
+    
+    if current_round is None or total_rounds is None:
+        return jsonify({"error": "Missing round information"}), 400
 
     if current_round < total_rounds:
-        if current_agent_index == 0:
-            # Shuffle the agents at the beginning of each round
-            last_speaker = game.agents[-1] if game_data else None
-            remaining_agents = [agent for agent in game.agents if agent != last_speaker]
-            random.shuffle(remaining_agents)
+        try:
+            if current_agent_index == 0:
+                round_data = game.run_round(current_round, total_rounds)
+                game_data.extend(round_data)
             
-            if last_speaker:
-                insert_position = random.randint(1, len(remaining_agents))
-                remaining_agents.insert(insert_position, last_speaker)
-                game.agents = remaining_agents
-            else:
-                game.agents = remaining_agents
-
-            if current_round > 1:
+            agent_data = game_data[current_agent_index]
+            current_agent_index += 1
+            
+            round_finished = current_agent_index >= len(game.agents)
+            if round_finished:
+                current_agent_index = 0
                 game_data = []
-
-        agent = game.agents[current_agent_index]
-        agent_data = game.get_agent_response(agent, current_round, total_rounds)
-        game_data.append(agent_data)
-        current_agent_index += 1
-
-        round_finished = current_agent_index == len(game.agents)
-        if round_finished:
-            current_agent_index = 0
-            current_round += 1
-
-        return jsonify({
-            "agent_data": agent_data, 
-            "current_round": current_round,
-            "round_finished": round_finished
-        })
+                current_round += 1
+            
+            return jsonify({
+                "agent_data": agent_data,
+                "current_round": current_round,
+                "round_finished": round_finished
+            })
+            
+        except Exception as e:
+            print(f"Error in next_agent: {e}")
+            return jsonify({"error": str(e)}), 500
     else:
-        # Call get_final_answers once all rounds are completed
         final_answers = game.get_final_answers()
         return jsonify({
             "finished": True,
             "final_answers": final_answers
         })
 
-
-original_agent_count = len(agent_list)
+@app.route('/download_log', methods=['GET'])
+def download_log():
+    if game:
+        log_content = "MATH DISCUSSION LOG\n"
+        log_content += "=" * 50 + "\n\n"
+        
+        # Add problem statement
+        log_content += f"MATH PROBLEM:\n{game.math_problem}\n\n"
+        
+        # Add participants info
+        log_content += "PARTICIPANTS:\n"
+        for agent in game.agents:
+            log_content += f"{agent.name}:\n"
+            log_content += f"  Persona: {agent.persona}\n"
+            log_content += f"  Character Schema: {json.dumps(agent.character_schema, indent=2)}\n\n"
+        
+        # Add discussion with reflections
+        log_content += "DISCUSSION:\n"
+        log_content += "=" * 50 + "\n\n"
+        for i, message in enumerate(game.public_messages):
+            # Get speaker name
+            speaker_name = message.split()[0]
+            
+            # Add message with speaker info
+            log_content += f"[{speaker_name}]:\n"
+            log_content += f"Message: {message}\n"
+            
+            # Add reflection if available
+            if speaker_name in game.agent_reflections:
+                log_content += f"Thought Process: {game.agent_reflections[speaker_name]}\n"
+            
+            log_content += "-" * 30 + "\n\n"
+        
+        # Create in-memory file
+        mem_file = io.BytesIO()
+        mem_file.write(log_content.encode())
+        mem_file.seek(0)
+        
+        return send_file(
+            mem_file,
+            mimetype='text/plain',
+            as_attachment=True,
+            download_name='math_discussion.txt'
+        )
+    return jsonify({"error": "No discussion to download"})
 
 @app.route('/reset', methods=['POST'])
 def reset_game():
     global game, current_agent_index, game_data, agent_list
-    agent_list = agent_list[:original_agent_count]
+    agent_list = agent_list[:]
     game = None
     current_agent_index = 0
     game_data = []
     return jsonify({"status": "reset"})
-
-@app.route('/download_log', methods=['GET'])
-def download_log():
-    if game:
-        log_content = game.get_log()
-        buffer = io.BytesIO()
-        buffer.write(log_content.encode('utf-8'))
-        buffer.seek(0)
-        return send_file(buffer, as_attachment=True, download_name='game_log.md', mimetype='text/markdown')
-    else:
-        return jsonify({"error": "No game log available"}), 400
 
 if __name__ == "__main__":
     app.run(debug=True)

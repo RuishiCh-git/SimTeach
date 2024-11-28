@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>multi-agent</title>
+  <title>Middle School Math Discussion</title>
   <script src="https://unpkg.com/@popperjs/core@2"></script>
   <script src="https://unpkg.com/tippy.js@6"></script>
   <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css"/>
@@ -15,171 +15,159 @@
       --text-color: #34495e;
       --border-color: #bdc3c7;
     }
+
+    /* Base styles */
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
       margin: 0;
       padding: 0;
       font-size: 14px;
       background-color: var(--background-color);
       color: var(--text-color);
     }
+
     .container {
       max-width: 800px;
       margin: 0 auto;
       padding: 20px;
     }
+
+    /* Game container styles */
     .game-container {
       width: 100%;
       max-height: 80vh;
       overflow-y: auto;
       background-color: var(--background-color);
-      padding: 20px;
-      padding-top: 40px;
+      padding: 20px 20px 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
+
+    /* Message styles */
     .agent-row {
       max-width: 600px;
       margin: 0 auto 20px;
       padding-bottom: 20px;
     }
+
     .message-container {
       position: relative;
       margin-bottom: 20px;
     }
+
     .agent-name {
       font-weight: bold;
       margin-bottom: 5px;
       color: #777;
     }
+
     .message-group {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
     }
-    .message-group.user-agent {
-      align-items: flex-end;
-    }
+
     .message {
       max-width: 70%;
-      padding: 8px 12px;
+      padding: 12px 16px;
       margin: 2px 0;
       border-radius: 18px;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 14px;
-      line-height: 1.4;
-    }
-    .message.user-agent {
-      background-color: var(--primary-color);
-      color: white;
-    }
-    .message.other-agent {
+      line-height: 1.5;
       background-color: #e5e5ea;
       color: #000000;
     }
-    /* Remove special formatting for first and last bubbles */
-    
-    .user-agent .agent-name {
-      text-align: right;
-    }
+
+    /* Header styles */
     h1 {
       color: var(--secondary-color);
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      font-size: 24px;
     }
+
+    /* Control button styles */
     .controls {
       display: flex;
       justify-content: center;
+      gap: 12px;
       margin-bottom: 20px;
     }
+
     button {
       font-size: 14px;
-      padding: 8px 16px;
-      margin-right: 10px;
+      padding: 10px 20px;
       background-color: var(--primary-color);
       color: white;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      transition: background-color 0.3s ease;
+      transition: all 0.2s ease;
     }
+
     button:hover {
       background-color: #2980b9;
+      transform: translateY(-1px);
     }
-    button:disabled {
-      background-color: var(--border-color);
-      cursor: not-allowed;
-    }
-    .tippy-box[data-theme~='custom'] {
-      background-color: white;
-      color: var(--text-color);
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .game-layout {
-      display: flex;
-      gap: 20px;
-    }
-    .messages-column {
-      flex: 3;
-    }
-    .votes-column {
-      flex: 1;
-      background-color: #f0f0f0;
-      padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .vote-item {
-      margin-bottom: 10px;
-    }
+
+    /* Start page styles */
     .start-page {
       max-width: 600px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 24px;
       background-color: white;
-      border-radius: 8px;
+      border-radius: 12px;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
+
     .form-group {
-      margin-bottom: 15px;
+      margin-bottom: 20px;
     }
+
     .form-group label {
       display: block;
-      margin-bottom: 5px;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: var(--secondary-color);
     }
-    .form-group input, .form-group textarea {
-      width: calc(100% - 16px); 
-      padding: 8px;
+
+    .form-group select,
+    .form-group input {
+      width: 100%;
+      padding: 10px;
       border: 1px solid var(--border-color);
-      border-radius: 4px;
-      box-sizing: border-box; 
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s ease;
     }
-    .input-with-prefix {
-      display: flex;
-      flex-direction: column;
-      background-color: white;
+
+    .form-group select:focus,
+    .form-group input:focus {
+      border-color: var(--primary-color);
+      outline: none;
+    }
+
+    /* Problem text styles */
+    .problem-text {
+      margin-top: 16px;
+      padding: 16px;
+      background-color: #f8fafc;
+      border-radius: 8px;
       border: 1px solid var(--border-color);
-      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1.6;
     }
 
-    .input-prefix {
-      padding: 8px;
-      background-color: white;
-      border-bottom: 1px solid var(--border-color);
-      border-radius: 4px 4px 0 0;
+    /* Round info styles */
+    #round-info {
+      display: block;
+      text-align: center;
+      margin: 16px 0;
+      font-weight: 500;
+      color: var(--secondary-color);
     }
 
-    .input-with-prefix textarea {
-      flex-grow: 1;
-      border: none;
-      border-radius: 0 0 4px 4px;
-      padding: 8px;
-      min-height: 80px; 
-      resize: none; 
-    }
-
-    .input-with-prefix textarea::placeholder {
-      color: #999;
-    }
-
+    /* Loading spinner */
     .spinner {
       display: inline-block;
       width: 20px;
@@ -189,44 +177,108 @@
       border-top-color: var(--primary-color);
       animation: spin 1s ease-in-out infinite;
       margin-left: 10px;
-      vertical-align: middle;
     }
 
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    /* Final answers styles */
+    .final-answers {
+        margin-top: 20px;
+        padding: 20px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .final-answers h2 {
+        margin: 0 0 15px 0;
+        color: var(--secondary-color);
+        font-size: 20px;
+    }
+
+    .final-answers ul {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .final-answers li {
+        margin-bottom: 10px;
+        line-height: 1.5;
+    }
+
+    .final-answers strong {
+        color: var(--secondary-color);
+        margin-right: 5px;
+    }
+
+    /* Styles for Thought Process Section */
+    .agent-info {
+      padding: 16px;
+      max-width: 400px;
+      background-color: #ffffff; /* White background for better readability */
+      border: 1px solid #dcdcdc; /* Subtle gray border */
+      border-radius: 8px; /* Rounded corners */
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Soft shadow */
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      line-height: 1.6; /* Better spacing between lines */
+      font-size: 14px; /* Standard readable size */
+      color: #333333; /* Dark gray text for contrast */
+    }
+
+    .agent-info h4 {
+      margin-top: 0; /* Remove extra margin at the top */
+      margin-bottom: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      color: #2c3e50; /* Slightly darker for emphasis */
+    }
+
+    .agent-info p {
+      margin: 0 0 12px; /* Add space between paragraphs */
+    }
+
+    .agent-info pre {
+      background: #f8f8f8; /* Subtle gray for preformatted content */
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 13px; /* Slightly smaller font for technical content */
+      color: #555555; /* Medium gray for preformatted text */
+      overflow-x: auto; /* Horizontal scroll for long content */
+      line-height: 1.4; /* Compact but readable spacing */
+      white-space: pre-wrap; /* Wrap long lines instead of scrolling */
+    }
+
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>multi-agent</h1>
+    <h1>Middle School Math Discussion</h1>
     <div id="start-page" class="start-page">
       <div class="form-group">
         <label for="num-rounds">Number of rounds:</label>
-        <input type="number" id="num-rounds" min="1" value="3" style="width: 50px;">
+        <input type="number" id="num-rounds" min="2" max="5" value="3" style="width: 60px;">
       </div>
       <div class="form-group">
-        <label for="agent-name">Your agent's name:</label>
-        <input type="text" id="agent-name" required>
+        <label for="problem-type">Select a math topic:</label>
+        <select id="problem-type">
+          <option value="">Choose a topic...</option>
+          <option value="algebraic-fractions">Simplifying Algebraic Fractions</option>
+          <option value="quadrilaterals">Properties of Quadrilaterals</option>
+          <option value="shapes">Area of Simple Shapes</option>
+          <option value="fractions">Adding and Subtracting Fractions</option>
+      </select>
+        <div id="problem-text" class="problem-text" style="display: none;"></div>
       </div>
-      <div class="form-group">
-        <label for="agent-persona">Your agent's persona:</label>
-        <div class="input-with-prefix">
-          <span class="input-prefix">You are...</span>
-          <textarea id="agent-persona" rows="8" required placeholder="a PhD student at Stanford University. You're interested in AI agents and simulation, and you're currently working on homework for CS 222. In your free time, you like to draw and play board games. You have two cute hamsters, Adobo and Bingus. In the past week, you've gone to the arcade three times to play Dance Dance Revolution. You dislike when tourists at the Oval take pictures of you riding your bike."></textarea>
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="position">Position:</label>
-        <input type="text" id="position" placeholder="group leader" required>
-      </div>
-      <button id="start-game">Start</button>
+      <button id="start-game">Start Discussion</button>
     </div>
+
     <div id="game-page" style="display: none;">
       <div class="controls">
-        <button id="next-round" disabled>Next Round</button>
-        <button id="reset-game">Reset</button>
-        <button id="download-log" style="display: none;">Download Log</button>
+        <button id="reset-game">New Discussion</button>
+        <button id="download-log" style="display: none;">Save Discussion</button>
       </div>
       <div id="round-info-container">
         <span id="round-info"></span>
@@ -234,116 +286,123 @@
       </div>
     </div>
   </div>
+
   <div id="game-layout" class="game-layout" style="display: none;">
     <div id="game-container" class="game-container messages-column"></div>
-    <div class="container">
-      <div id="votes-container" class="votes-column" style="display: none;">
-        <h3>Votes</h3>
-        <div id="votes-list"></div>
-      </div>
-    </div>
   </div>
 
   <script>
+    // Problem definitions
+    const problemMap = {
+      'algebraic-fractions': {
+        text: "Simplify the following, if possible: (x² + 2x - 3) / (x - 3)",
+        context: "Remember to factor the numerator and check restrictions on the denominator."
+      },
+      'quadrilaterals': {
+        text: "If a square has a diagonal of length 10 units, find the length of its side.",
+        context: "Think about how the diagonal relates to the sides in a square."
+      },
+      'shapes': {
+        text: "Find the area of a parallelogram with base 8 units and height 6 units.",
+        context: "Consider which measurements are needed for the area of a parallelogram."
+      },
+      'fractions': {
+        text: "Solve: (3/4 - 1/6) × 2/3",
+        context: "Remember the order of operations with fractions."
+      }
+    };
+
+    // DOM Elements
     const startPage = document.getElementById('start-page');
     const gamePage = document.getElementById('game-page');
     const gameLayout = document.getElementById('game-layout');
     const numRoundsInput = document.getElementById('num-rounds');
-    const agentNameInput = document.getElementById('agent-name');
-    const agentPersonaInput = document.getElementById('agent-persona');
+    const problemSelect = document.getElementById('problem-type');
+    const problemText = document.getElementById('problem-text');
     const startGameBtn = document.getElementById('start-game');
-    const nextRoundBtn = document.getElementById('next-round');
     const resetGameBtn = document.getElementById('reset-game');
     const roundInfo = document.getElementById('round-info');
     const gameContainer = document.getElementById('game-container');
     const loadingSpinner = document.getElementById('loading-spinner');
     const downloadLogBtn = document.getElementById('download-log');
-    const positionInput = document.getElementById('position');
 
+    function displayFinalAnswers(finalAnswers) {
+        const finalAnswersContainer = document.createElement('div');
+        finalAnswersContainer.className = 'final-answers';
+        finalAnswersContainer.innerHTML = `
+            <h2>Final Answers</h2>
+            <ul>
+                ${finalAnswers.map(ans => `
+                    <li>
+                        <strong>${ans.name}:</strong> 
+                        ${ans.answer}
+                    </li>
+                `).join('')}
+            </ul>
+        `;
+        gameContainer.appendChild(finalAnswersContainer);
+        downloadLogBtn.style.display = 'inline-block';
+    }
+    // State variables
     let currentRound = 0;
     let totalRounds = 3;
     let currentAgentIndex = 0;
     let roundData = [];
-    let userAgentName = '';
 
-    function createThoughtsContent(data) {
-      if (data.introduction) {
-        return `
-          <h4>Introduction strategy:</h4>
-          <p>${data.introduction}</p>
-        `;
+    // Event Handlers
+    problemSelect.addEventListener('change', () => {
+      const selectedProblem = problemSelect.value;
+      if (selectedProblem) {
+        const problem = problemMap[selectedProblem];
+        problemText.innerHTML = `<strong>${problem.text}</strong><br><br>${problem.context}`;
+        problemText.style.display = 'block';
       } else {
-        return `
-          <h4>Reflection:</h4>
-          <p>${data.reflection}</p>
-          <h4>Strategy:</h4>
-          <p>${data.plan}</p>
-        `;
+        problemText.style.display = 'none';
       }
-    }
+    });
 
     function updateRoundInfo() {
-      if (currentRound === totalRounds) {
-        roundInfo.textContent = "Voting in progress";
-      } else {
-        roundInfo.textContent = `Round ${currentRound} of ${totalRounds - 1}`;
-      }
-    }
-
-    function displayVotes(votes) {
-      const votesList = document.getElementById('votes-list');
-      votesList.innerHTML = '';
-      votes.forEach(vote => {
-        const voteItem = document.createElement('div');
-        voteItem.className = 'vote-item';
-        voteItem.textContent = `${vote[0]} voted for ${vote[1]}`;
-        votesList.appendChild(voteItem);
-      });
-      document.getElementById('votes-container').style.display = 'block';
+      roundInfo.textContent = `Round ${currentRound} of ${totalRounds - 1}`;
     }
 
     function displayMessage(agentData) {
       const agentRow = document.createElement('div');
       agentRow.className = 'agent-row';
       
-      const isUserAgent = agentData.name === userAgentName;
-      const messageClass = isUserAgent ? 'user-agent' : 'other-agent';
-      
-      const sentences = agentData.message.split(/(?<=[.!?])\s+/);
       const messageGroup = document.createElement('div');
-      messageGroup.className = `message-group ${messageClass}`;
+      messageGroup.className = 'message-group';
       
-      for (let i = 0; i < sentences.length; i += 2) {
-        const messageBubble = document.createElement('div');
-        messageBubble.className = `message ${messageClass}`;
-        if (i + 1 < sentences.length) {
-          messageBubble.textContent = sentences[i].trim() + ' ' + sentences[i + 1].trim();
-        } else {
-          messageBubble.textContent = sentences[i].trim();
-        }
-        messageGroup.appendChild(messageBubble);
-      }
+      const message = document.createElement('div');
+      message.className = 'message';
+      message.textContent = agentData.message;
       
-      agentRow.innerHTML = `
-        <div class="message-container ${messageClass}">
-          <div class="agent-name">${agentData.name}</div>
-        </div>
-      `;
+      const nameElement = document.createElement('div');
+      nameElement.className = 'agent-name';
+      nameElement.textContent = agentData.name;
       
-      agentRow.querySelector('.message-container').appendChild(messageGroup);
+      // Add tooltip with reflection and schema
+      tippy(nameElement, {
+          content: `
+              <div class="agent-info">
+                  <h4>Thought Process:</h4>
+                  <p>${agentData.reflection}</p>
+                  <h4>Character Schema:</h4>
+                  <pre>${JSON.stringify(agentData.schema, null, 2)}</pre>
+              </div>
+          `,
+          allowHTML: true,
+          theme: 'custom',
+          interactive: true,
+          placement: 'right'
+      });
+      
+      messageGroup.appendChild(message);
+      agentRow.appendChild(nameElement);
+      agentRow.appendChild(messageGroup);
       
       gameContainer.appendChild(agentRow);
       gameContainer.scrollTop = gameContainer.scrollHeight;
-
-      tippy(messageGroup, {
-        content: createThoughtsContent(agentData),
-        theme: 'custom',
-        placement: 'left-start',
-        allowHTML: true,
-        interactive: true,
-        maxWidth: 300,
-      });
-    }
+  }
 
     function showLoadingSpinner() {
       loadingSpinner.style.display = 'inline-block';
@@ -359,65 +418,79 @@
     }
 
     function fetchNextAgent() {
-      fetch('/next_agent', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ current_round: currentRound, total_rounds: totalRounds }) 
-      })
-      .then(response => response.json())
-      .then(data => {
-        hideLoadingSpinner();
-        if (data.finished) {
-          displayVotes(data.votes);
-          gameContainer.innerHTML += `<p>Game finished. The winner is ${data.winner}. Press "Reset Game" to start over.</p>`;
-          downloadLogBtn.style.display = 'inline-block';
-        } else {
-          displayMessage(data.agent_data);
-          if (data.round_finished) {
-            currentRound = data.current_round;
-            updateRoundInfo();
-          }
-          showLoadingSpinner();
-          setTimeout(fetchNextAgent, 500); // short delay before fetching next agent
-        }
-      });
+        fetch('/next_agent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ current_round: currentRound, total_rounds: totalRounds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoadingSpinner();
+            if (data.finished) {
+                displayFinalAnswers(data.final_answers);  // Show final answers in box
+            } else {
+                // Show ongoing discussion
+                displayMessage(data.agent_data);
+                if (data.round_finished) {
+                    currentRound = data.current_round;
+                    updateRoundInfo();
+                }
+                showLoadingSpinner();
+                setTimeout(fetchNextAgent, 500);
+            }
+        });
+    }
+    startGameBtn.addEventListener('click', () => {
+    const selectedProblem = problemSelect.value;
+    
+    if (!selectedProblem) {
+        alert('Please select a math topic.');
+        return;
     }
 
-    startGameBtn.addEventListener('click', () => {
-      userAgentName = agentNameInput.value.trim();
-      const userAgentPersona = agentPersonaInput.value.trim();
-      const position = positionInput.value.trim() || 'group leader';
-      
-      if (!userAgentName || userAgentPersona.length === 0) {
-        alert('Please enter both name and persona for your agent.');
-        return;
-      }
+    totalRounds = parseInt(numRoundsInput.value) + 1;
+    currentRound = 1;
 
-      totalRounds = parseInt(numRoundsInput.value) + 1;
-      currentRound = 1;
-
-      fetch('/add_agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: userAgentName, 
-          persona: userAgentPersona,
-          position: position
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === 'success') {
-          startPage.style.display = 'none';
-          gamePage.style.display = 'block';
-          gameLayout.style.display = 'flex';
-          updateRoundInfo();
-          startRound();
-        } else {
-          alert('Failed to add agent. Please try again.');
-        }
-      });
+    // Add logging to debug the request
+    console.log('Sending request with:', {
+        rounds: totalRounds,
+        problem_type: selectedProblem
     });
+
+    fetch('/start_simulation', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            rounds: totalRounds,
+            problem_type: selectedProblem
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => Promise.reject(err));
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Received response:', data);  // Debug logging
+        if (data.status === 'success') {
+            startPage.style.display = 'none';
+            gamePage.style.display = 'block';
+            gameLayout.style.display = 'flex';
+            updateRoundInfo();
+            startRound();
+        } else {
+            throw new Error(data.error || 'Failed to start simulation');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to start simulation. Please try again.');
+    });
+  });
 
     resetGameBtn.addEventListener('click', () => {
       fetch('/reset', { method: 'POST' })
@@ -425,9 +498,8 @@
         .then(data => {
           if (data.status === 'reset') {
             gameContainer.innerHTML = '';
-            document.getElementById('votes-container').style.display = 'none';
-            roundInfo.textContent = '';
-            nextRoundBtn.disabled = true;
+            problemSelect.value = '';
+            problemText.style.display = 'none';
             startPage.style.display = 'block';
             gamePage.style.display = 'none';
             gameLayout.style.display = 'none';
@@ -436,20 +508,6 @@
             currentAgentIndex = 0;
           }
         });
-    });
-
-    updateRoundInfo();
-
-    agentPersonaInput.addEventListener('focus', function() {
-      if (this.value.trim() === '') {
-        this.placeholder = '';
-      }
-    });
-
-    agentPersonaInput.addEventListener('blur', function() {
-      if (this.value.trim() === '') {
-        this.placeholder = this.getAttribute('placeholder');
-      }
     });
 
     downloadLogBtn.addEventListener('click', () => {
