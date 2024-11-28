@@ -493,14 +493,40 @@ def download_log():
         for agent in game.agents:
             log_content += f"{agent.name}:\n"
             log_content += f"  Persona: {agent.persona}\n"
-            log_content += f"  Character Schema: {json.dumps(agent.character_schema, indent=2)}\n\n"
+            log_content += f"  Initial Character Schema: {json.dumps(agent.character_schema, indent=2)}\n\n"
         
-        # Add discussion with reflections
-        log_content += "DISCUSSION:\n"
+        # Add discussion messages
+        log_content += "DISCUSSION AND MESSAGES:\n"
         log_content += "=" * 50 + "\n\n"
         for i, message in enumerate(game.public_messages):
             log_content += f"[{i + 1}] {message}\n"
         
+        # Add schema update details
+        log_content += "\nSCHEMA UPDATES AND REFLECTIONS:\n"
+        log_content += "=" * 50 + "\n\n"
+        for agent in game.agents:
+            log_content += f"Agent: {agent.name}\n"
+            if hasattr(agent, 'schema_changes') and agent.schema_changes:
+                log_content += "  Schema Changes:\n"
+                log_content += f"    Reason: {agent.schema_changes.get('update_reason', 'No reason provided')}\n"
+                log_content += f"    Mistakes Addressed: {', '.join(agent.schema_changes.get('mistakes_addressed', []))}\n"
+                log_content += f"    Changes:\n"
+                log_content += json.dumps(agent.schema_changes, indent=2) + "\n"
+            else:
+                log_content += "  No schema changes recorded.\n"
+            
+            if hasattr(agent, 'learning_progress') and agent.learning_progress:
+                log_content += f"  Learning Progress:\n    {agent.learning_progress}\n"
+            log_content += "\n"
+
+        # Add final reflections (optional)
+        log_content += "FINAL REFLECTIONS:\n"
+        log_content += "=" * 50 + "\n\n"
+        for agent in game.agents:
+            reflection = game.generate_reflection(agent)
+            log_content += f"Reflection for {agent.name}:\n"
+            log_content += f"{reflection}\n\n"
+
         # Create in-memory file
         mem_file = io.BytesIO()
         mem_file.write(log_content.encode())
